@@ -277,6 +277,10 @@ function render() {
     const effectDps  = state.sessionDps != null ? state.sessionDps : prof.dps;
     playerStatus = player.tick(state, effectDps);
     if (playerStatus?.alert) showWorkoutAlert(playerStatus.alert);
+    // Auto-stop session when workout finishes (delay so the voice cue completes)
+    if (playerStatus?.type === 'complete') {
+      setTimeout(() => { if (state.running) stopSession(); }, 3500);
+    }
   }
 
   const ms = elapsedMs();
@@ -697,6 +701,10 @@ function onWorkoutAction(action, idStr) {
   const w = workouts.find(x => x.id === id);
   if (action === 'load') {
     if (!w) return;
+    if (state.running) {
+      alert('Stop the current session before loading a different workout.');
+      return;
+    }
     player.load(w);
     // Switch to Train tab
     document.querySelector('[data-tab="train"]').click();
