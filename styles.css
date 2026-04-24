@@ -1,15 +1,16 @@
 :root {
   --bg: #0a0e0f;
-  --panel: #12181a;
-  --panel-2: #1a2123;
+  --panel: #161d1f;
+  --panel-2: #1f2729;
   --ink: #f2f5f3;
-  --ink-dim: #8a9396;
-  --ink-faint: #4a5254;
+  --ink-dim: #a3acaf;
+  --ink-faint: #6a7378;
   --accent: #ff3c28;        /* dragon red */
   --accent-2: #ffb800;       /* gold */
   --ok: #2ecc71;
   --warn: #ff3c28;
-  --border: #222b2d;
+  --border: #3a4549;        /* brighter so cards/dividers actually read */
+  --border-strong: #4d5a5e;
   --grid: rgba(255,255,255,.04);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
