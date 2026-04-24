@@ -574,6 +574,15 @@ function initTabs() {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       btn.classList.add('active');
       $('view-' + btn.dataset.tab).classList.add('active');
+      // Bottom controls (CALIBRATE/START etc.) only make sense on Train tab
+      const onTrain = btn.dataset.tab === 'train';
+      document.querySelectorAll('.controls').forEach(c => {
+        c.style.display = onTrain ? '' : 'none';
+      });
+      if (onTrain) {
+        // Re-apply correct controls based on session state
+        toggleControls(state.running ? (state.paused ? 'paused' : 'running') : 'idle');
+      }
       if (btn.dataset.tab === 'history') renderHistory();
       if (btn.dataset.tab === 'plan') renderWorkoutList();
       if (btn.dataset.tab === 'settings') {
@@ -736,12 +745,12 @@ function renderBuilderIntervals() {
       </select>
       <div class="iv-ps-wrap" ${isRest ? 'style="visibility:hidden"' : ''}>
         <span class="iv-ps-label">PS</span>
-        <input class="iv-ps" type="number" min="1" max="10" value="${iv.ps}" data-field="ps">
+        <input class="iv-ps" type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="10" value="${iv.ps}" data-field="ps">
       </div>
       <div class="iv-dur-wrap">
-        <input class="iv-min" type="number" min="0" max="99" value="${minVal}" data-field="min">
+        <input class="iv-min" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="99" value="${minVal}" data-field="min">
         <span class="iv-dur-sep">:</span>
-        <input class="iv-sec" type="number" min="0" max="59" step="5" value="${String(secVal).padStart(2,'0')}" data-field="sec">
+        <input class="iv-sec" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="59" step="5" value="${String(secVal).padStart(2,'0')}" data-field="sec">
       </div>
       <button class="btn btn-ghost btn-compact danger-btn iv-del" data-field="del">✕</button>
     </div>`;
