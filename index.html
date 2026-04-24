@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0a0e0f" />
+  <meta name="description" content="Dragonboat training tracker — stroke rate, speed, pace and session history." />
+  <title>Dragon — Training</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark"></div>
+    <div class="brand-text">DRAGON<span>//</span>LOG</div>
+  </div>
+  <div class="status">
+    <span class="dot" id="gpsDot"></span>
+    <span id="gpsStatus">GPS OFF</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="train">Train</button>
+  <button data-tab="history">History</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+
+<main>
+  <!-- TRAIN VIEW -->
+  <section class="view active" id="view-train">
+    <div id="permsPrompt" class="perms" style="display:none">
+      <h3>Enable Sensors</h3>
+      <p>This app needs motion &amp; location access to track strokes, speed and distance. Tap below to grant permission.</p>
+      <button id="requestPerms">Enable</button>
+    </div>
+
+    <div class="primary-stats">
+      <div class="stat hero">
+        <div class="stat-label"><span>Stroke Rate</span><span class="unit">SPM</span></div>
+        <div class="stat-value" id="spm">0</div>
+        <div class="stat-sub" id="strokeCount">0 strokes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span>Speed</span><span class="unit" id="speedUnit">KM/H</span></div>
+        <div class="stat-value" id="speed">0.0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span>Pace</span><span class="unit">/500m</span></div>
+        <div class="stat-value" id="pace">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span>Distance</span><span class="unit" id="distUnit">M</span></div>
+        <div class="stat-value" id="distance">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span>Avg Speed</span><span class="unit">KM/H</span></div>
+        <div class="stat-value" id="avgSpeed">0.0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span>Dist / Stroke</span><span class="unit" id="dpsUnit">M</span></div>
+        <div class="stat-value" id="dpsLive">—</div>
+        <div class="stat-sub" id="dpsSource">source: —</div>
+      </div>
+    </div>
+
+    <div class="profile-bar" id="profileBar">
+      <div class="profile-bar-label">PROFILE</div>
+      <div class="profile-pills" id="profilePills"></div>
+    </div>
+
+    <div class="timer-bar">
+      <div class="timer" id="timer">00:00<span class="ms">.0</span></div>
+      <div class="timer-label">Elapsed</div>
+    </div>
+
+    <div class="sparkline">
+      <div class="sparkline-label">SPM · Last 60s</div>
+      <svg class="spark" id="sparkSpm" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
+    </div>
+
+    <div class="splits">
+      <div class="splits-head">
+        <div>#</div><div>Time</div><div>Dist</div><div>Pace</div><div>SPM</div>
+      </div>
+      <div id="splitsList">
+        <div class="splits-empty">Tap LAP during a session to mark splits</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORY VIEW -->
+  <section class="view" id="view-history">
+    <div id="historyList"></div>
+  </section>
+
+  <!-- SETTINGS VIEW -->
+  <section class="view" id="view-settings">
+    <div class="setup">
+      <h3>Crew Profiles</h3>
+      <p class="setup-note">
+        Each profile stores its own distance-per-stroke value. Calibrate once per profile by paddling a known distance.
+      </p>
+      <div id="profileList"></div>
+      <div class="add-profile">
+        <input type="text" id="newProfileName" placeholder="New profile name">
+        <button class="btn btn-ghost btn-compact" id="addProfileBtn">ADD</button>
+      </div>
+    </div>
+
+    <div class="setup">
+      <h3>Distance Source</h3>
+      <div class="setup-row">
+        <div class="setup-label">Mode</div>
+        <select id="distMode">
+          <option value="fused">Fused (GPS + strokes)</option>
+          <option value="gps">GPS only</option>
+          <option value="stroke">Strokes only</option>
+        </select>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Auto-recalibrate DPS from GPS</div>
+        <select id="autoRecal">
+          <option value="1">On</option>
+          <option value="0">Off</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="setup">
+      <h3>Stroke Detection</h3>
+      <div class="setup-row">
+        <div class="setup-label">Sensitivity</div>
+        <input type="range" id="sensitivity" min="0.5" max="5" step="0.1" value="1.8">
+        <div class="setup-val" id="sensVal">1.8</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Min stroke interval (ms)</div>
+        <input type="number" id="minInterval" value="300" min="150" max="1000" step="25">
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Live shake reading</div>
+        <div class="setup-val" id="liveShake">0.00</div>
+      </div>
+    </div>
+
+    <div class="setup">
+      <h3>Display</h3>
+      <div class="setup-row">
+        <div class="setup-label">Units</div>
+        <select id="units">
+          <option value="metric">Metric (km/h, m)</option>
+          <option value="imperial">Imperial (mph, yd)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="setup">
+      <h3>Data</h3>
+      <div class="setup-row">
+        <div class="setup-label">Saved sessions</div>
+        <div class="setup-val" id="sessionCount">0</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Export all as JSON</div>
+        <button class="btn btn-ghost btn-compact" id="exportBtn">Export</button>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label danger">Clear all sessions</div>
+        <button class="btn btn-ghost btn-compact danger-btn" id="clearBtn">Clear</button>
+      </div>
+    </div>
+
+    <div class="setup">
+      <h3>App</h3>
+      <div class="setup-row">
+        <div class="setup-label">Version</div>
+        <div class="setup-val" id="appVersion">—</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Offline ready</div>
+        <div class="setup-val" id="offlineStatus">—</div>
+      </div>
+    </div>
+
+    <div class="setup">
+      <h3>About</h3>
+      <p class="setup-note">
+        Mount your phone in the boat with a clear view of the sky for best GPS.
+        Strokes are detected from phone motion — adjust sensitivity if readings seem off.
+        All data is stored locally on your device — nothing is uploaded.
+      </p>
+    </div>
+  </section>
+</main>
+
+<!-- CONTROL BARS -->
+<div class="controls" id="trainControls">
+  <button class="btn btn-ghost btn-wide-fixed" id="calibBtn">CALIBRATE</button>
+  <button class="btn btn-primary" id="startBtn">START</button>
+</div>
+<div class="controls" id="runningControls" style="display:none">
+  <button class="btn btn-lap" id="lapBtn">LAP</button>
+  <button class="btn btn-secondary" id="pauseBtn">PAUSE</button>
+  <button class="btn btn-ghost" id="stopBtn">STOP</button>
+</div>
+<div class="controls" id="pausedControls" style="display:none">
+  <button class="btn btn-primary" id="resumeBtn">RESUME</button>
+  <button class="btn btn-ghost" id="stopBtn2">FINISH</button>
+</div>
+
+<!-- CALIBRATION MODAL -->
+<div class="modal-overlay" id="calibModal">
+  <div class="modal">
+    <h3 id="calibTitle">CALIBRATE DPS</h3>
+    <p id="calibDesc">Paddle a known distance to learn this profile's distance per stroke. The more accurate the distance, the better the estimate.</p>
+
+    <div id="calibStep1">
+      <div class="distance-input">
+        <input type="number" id="calibDistance" value="200" min="50" max="2000" step="10">
+        <span class="distance-input-unit">METERS</span>
+      </div>
+      <p class="hint">Common: 200m course, 250m race leg, 500m, 1km.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="calibCancel1">CANCEL</button>
+        <button class="btn btn-primary" id="calibStart">BEGIN</button>
+      </div>
+    </div>
+
+    <div id="calibStep2" style="display:none;">
+      <p>Paddle now. Tap STOP exactly when you finish the <strong id="calibTargetDist">200m</strong>.</p>
+      <div class="calib-stats">
+        <div class="calib-stat">
+          <div class="l">TIME</div>
+          <div class="v" id="calibTime">00:00</div>
+        </div>
+        <div class="calib-stat">
+          <div class="l">STROKES</div>
+          <div class="v" id="calibStrokes">0</div>
+        </div>
+        <div class="calib-stat">
+          <div class="l">SPM</div>
+          <div class="v" id="calibSpm">0</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="calibCancel2">CANCEL</button>
+        <button class="btn btn-primary" id="calibStop">STOP</button>
+      </div>
+    </div>
+
+    <div id="calibStep3" style="display:none;">
+      <p>Calibration complete. Review and save.</p>
+      <div class="calib-stats">
+        <div class="calib-stat">
+          <div class="l">DISTANCE</div>
+          <div class="v" id="calibResultDist">—</div>
+        </div>
+        <div class="calib-stat">
+          <div class="l">STROKES</div>
+          <div class="v" id="calibResultStrokes">—</div>
+        </div>
+        <div class="calib-stat accent">
+          <div class="l">DPS</div>
+          <div class="v" id="calibResultDps">—</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="calibRedo">REDO</button>
+        <button class="btn btn-primary" id="calibSave">SAVE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- UPDATE TOAST -->
+<div class="toast" id="updateToast" style="display:none;">
+  <span>New version available</span>
+  <button id="updateBtn">RELOAD</button>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

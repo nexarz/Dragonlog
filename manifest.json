@@ -1,0 +1,32 @@
+{
+  "name": "Dragon//Log — Dragonboat Training",
+  "short_name": "Dragon",
+  "description": "Track stroke rate, speed, distance, splits and training sessions for dragonboat and outrigger paddling.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0e0f",
+  "theme_color": "#0a0e0f",
+  "categories": ["sports", "fitness", "health"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
