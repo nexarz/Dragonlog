@@ -147,6 +147,15 @@ export function createPlayer() {
         const next = workout.intervals[currentIdx + 1];
         speak(next ? `10 seconds. Next: ${ivName(next)}.` : '10 seconds. Final push.');
       }
+      // 5-second verbal countdown: fires as soon as remaining drops below each second mark
+      for (let s = 5; s >= 1; s--) {
+        const ck = `${k}_cd${s}`;
+        if (remaining <= s * 1000 && !announced.has(ck)) {
+          announced.add(ck);
+          speak(String(s));
+          break;
+        }
+      }
 
       // --- Interval complete ---
       if (remaining <= 0) {

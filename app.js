@@ -103,7 +103,6 @@ async function startSession() {
   gps.start();
   wakeLock = await acquireWakeLock();
   toggleControls('running');
-  renderSplits();
   if (player.loaded) player.start();
 }
 function pauseSession() {
@@ -138,24 +137,6 @@ function stopSession() {
       alert('Could not save session — storage full? Try exporting and clearing old sessions.');
     }
   }
-}
-function addSplit() {
-  const ms = elapsedMs();
-  const splitTimeMs = ms - state.lastSplitTime;
-  const splitDist = state.fusedDistance - state.lastSplitDist;
-  const splitStrokes = state.strokes.length - state.lastSplitStrokes;
-  const spmAvg = splitTimeMs > 0 ? Math.round(splitStrokes / (splitTimeMs / 60000)) : 0;
-  state.splits.push({
-    n: state.splits.length + 1,
-    timeMs: splitTimeMs,
-    distM: splitDist,
-    spm: spmAvg,
-  });
-  state.lastSplitTime = ms;
-  state.lastSplitDist = state.fusedDistance;
-  state.lastSplitStrokes = state.strokes.length;
-  renderSplits();
-  if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
 }
 function elapsedMs() {
   if (!state.running) return 0;
@@ -366,24 +347,6 @@ function renderSpark() {
   `;
 }
 
-// ---------- Splits ----------
-function renderSplits() {
-  const container = $('splitsList');
-  if (!state.splits.length) {
-    container.innerHTML = '<div class="splits-empty">Tap LAP during a session to mark splits</div>';
-    return;
-  }
-  container.innerHTML = state.splits.map(s => {
-    const pace = s.distM > 0 ? fmtPace500(s.distM / (s.timeMs / 1000)) : '—';
-    return `<div class="split-row">
-      <div class="n">${s.n}</div>
-      <div>${fmtTime(s.timeMs, false)}</div>
-      <div>${fmtDist(s.distM, prefs.units)}${prefs.units === 'metric' ? 'm' : 'yd'}</div>
-      <div>${pace}</div>
-      <div>${s.spm}</div>
-    </div>`;
-  }).join('');
-}
 
 // ---------- History ----------
 function renderHistory() {
@@ -628,7 +591,6 @@ function initSessionControls() {
   $('resumeBtn').addEventListener('click', resumeSession);
   $('stopBtn').addEventListener('click', stopSession);
   $('stopBtn2').addEventListener('click', stopSession);
-  $('lapBtn').addEventListener('click', addSplit);
 
   // Calibration buttons
   $('calibBtn').addEventListener('click', async () => {
