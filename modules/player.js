@@ -138,11 +138,7 @@ export function createPlayer() {
       const k         = currentIdx;
 
       // --- Countdown cues ---
-      if (remaining <= 30500 && remaining > 29500 && !announced.has(`${k}_30`)) {
-        announced.add(`${k}_30`);
-        speak('30 seconds.');
-      }
-      if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
+if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
         announced.add(`${k}_10`);
         const next = workout.intervals[currentIdx + 1];
         speak(next ? `10 seconds. Next: ${ivName(next)}.` : '10 seconds. Final push.');
