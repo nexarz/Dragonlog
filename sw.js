@@ -2,7 +2,7 @@
 // Strategy: cache shell on install; on fetch, try network first for HTML (so updates are fast),
 // cache-first for other assets. Works offline once installed.
 
-const CACHE = 'dragonlog-v1';
+const CACHE = 'dragonlog-v2';
 const SHELL = [
   './',
   './index.html',
@@ -13,6 +13,8 @@ const SHELL = [
   './modules/fusion.js',
   './modules/sensors.js',
   './modules/format.js',
+  './modules/workout.js',
+  './modules/player.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];

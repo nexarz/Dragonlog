@@ -32,6 +32,7 @@
 
 <nav class="tabs">
   <button class="active" data-tab="train">Train</button>
+  <button data-tab="plan">Plan</button>
   <button data-tab="history">History</button>
   <button data-tab="settings">Settings</button>
 </nav>
@@ -39,6 +40,11 @@
 <main>
   <!-- TRAIN VIEW -->
   <section class="view active" id="view-train">
+    <!-- Workout Player (shown when workout is loaded) -->
+    <div id="workoutPlayer" style="display:none"></div>
+    <!-- Performance Alert Banner -->
+    <div id="workoutAlertBanner" class="workout-alert" style="display:none"></div>
+
     <div id="permsPrompt" class="perms" style="display:none">
       <h3>Enable Sensors</h3>
       <p>This app needs motion &amp; location access to track strokes, speed and distance. Tap below to grant permission.</p>
@@ -95,6 +101,28 @@
       </div>
       <div id="splitsList">
         <div class="splits-empty">Tap LAP during a session to mark splits</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAN VIEW -->
+  <section class="view" id="view-plan">
+    <!-- Workout list (default) -->
+    <div id="workoutListView">
+      <div id="workoutListItems"></div>
+      <button class="btn btn-primary workout-new-btn" id="newWorkoutBtn">+ NEW WORKOUT</button>
+    </div>
+    <!-- Builder (shown when creating / editing) -->
+    <div id="workoutBuilderView" style="display:none">
+      <div class="setup">
+        <h3 id="builderTitle">NEW WORKOUT</h3>
+        <input type="text" id="workoutNameInput" class="workout-name-input" placeholder="Workout name…">
+      </div>
+      <div id="builderIntervalList"></div>
+      <button class="btn btn-ghost workout-add-interval" id="addIntervalBtn">+ ADD INTERVAL</button>
+      <div class="builder-footer">
+        <button class="btn btn-ghost" id="builderCancelBtn">CANCEL</button>
+        <button class="btn btn-primary" id="builderSaveBtn">SAVE WORKOUT</button>
       </div>
     </div>
   </section>

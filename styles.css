@@ -70,7 +70,7 @@ header {
 
 /* ---------- TABS ---------- */
 nav.tabs {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   gap: 0;
   border-bottom: 1px solid var(--border);
   font-family: 'Bebas Neue', sans-serif;
@@ -605,3 +605,207 @@ svg.spark { width: 100%; height: 80px; display: block; }
   letter-spacing: .18em;
   cursor: pointer;
 }
+
+/* ---------- WORKOUT PLAYER ---------- */
+.workout-player {
+  background: linear-gradient(135deg, #091a0e 0%, #12181a 80%);
+  border: 1px solid rgba(46,204,113,.25);
+  border-left: 3px solid var(--ok);
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.wp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.wp-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px; letter-spacing: .18em;
+  color: var(--ok);
+}
+.wp-progress {
+  display: flex; align-items: center; gap: 8px;
+}
+.wp-progress-bar {
+  width: 72px; height: 3px;
+  background: var(--panel-2); border-radius: 2px; overflow: hidden;
+}
+.wp-progress-fill {
+  height: 100%; background: var(--ok);
+  transition: width .4s ease;
+}
+.wp-counter {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: .1em; color: var(--ink-dim);
+}
+.wp-body {
+  display: flex; align-items: flex-end; justify-content: space-between;
+}
+.wp-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: .22em;
+  color: var(--ink-faint); text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.wp-interval-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px; letter-spacing: .08em;
+  color: var(--ink);
+}
+.wp-countdown {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 32px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2);
+  letter-spacing: .04em;
+}
+.wp-next { text-align: right; }
+.wp-next-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; color: var(--ink-dim);
+}
+.wp-next-dur {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--ink-faint);
+  margin-top: 2px;
+}
+.wp-ready {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: .12em;
+  color: var(--ok); opacity: .8;
+}
+
+/* ---------- PERFORMANCE ALERT ---------- */
+.workout-alert {
+  background: linear-gradient(90deg, rgba(255,60,40,.15), transparent);
+  border: 1px solid rgba(255,60,40,.5);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 10px 16px;
+  margin-bottom: 10px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px; letter-spacing: .18em;
+  color: var(--accent);
+  animation: alertPulse 1.2s ease-in-out infinite;
+}
+@keyframes alertPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .55; }
+}
+
+/* ---------- PLAN VIEW ---------- */
+.workout-new-btn {
+  width: 100%; margin-top: 14px;
+  padding: 16px 0; font-size: 18px;
+}
+.workout-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-2);
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.workout-card-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px; letter-spacing: .12em;
+  color: var(--ink); margin-bottom: 4px;
+}
+.workout-card-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: .15em;
+  color: var(--ink-dim); margin-bottom: 10px;
+}
+.workout-card-chips {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  margin-bottom: 12px;
+}
+.iv-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: .08em;
+  padding: 3px 8px; border-radius: 3px;
+  font-weight: 500;
+}
+.iv-chip.work     { background: rgba(255,60,40,.15);  color: var(--accent);   border: 1px solid rgba(255,60,40,.3); }
+.iv-chip.rest     { background: rgba(46,204,113,.1);  color: var(--ok);       border: 1px solid rgba(46,204,113,.3); }
+.iv-chip.warmup   { background: rgba(255,184,0,.1);   color: var(--accent-2); border: 1px solid rgba(255,184,0,.3); }
+.iv-chip.cooldown { background: rgba(74,82,84,.2);    color: var(--ink-dim);  border: 1px solid var(--border); }
+.workout-card-actions {
+  display: flex; gap: 8px;
+}
+.workout-card-actions .btn { flex: 1; padding: 12px 0; font-size: 15px; }
+
+/* ---------- WORKOUT BUILDER ---------- */
+.workout-name-input {
+  width: 100% !important;
+  font-size: 16px !important;
+  padding: 10px 12px !important;
+  margin-top: 8px;
+  font-family: 'Inter', sans-serif !important;
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+.interval-row {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+}
+.iv-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px; color: var(--accent);
+  min-width: 22px; flex-shrink: 0;
+}
+.iv-type-select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  padding: 6px 8px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: .06em;
+  width: auto !important;
+  flex: 1; min-width: 90px;
+}
+.iv-ps-wrap {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+.iv-ps-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: .15em;
+  color: var(--ink-dim);
+}
+.iv-ps {
+  width: 54px !important;
+  text-align: center;
+  padding: 6px 4px !important;
+}
+.iv-dur-wrap {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+.iv-dur-sep {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px; color: var(--ink-dim);
+}
+.iv-min, .iv-sec {
+  width: 50px !important;
+  text-align: center;
+  padding: 6px 4px !important;
+}
+.iv-del {
+  flex-shrink: 0; padding: 6px 10px !important;
+  font-size: 13px !important;
+}
+.workout-add-interval {
+  width: 100%; margin: 8px 0;
+  padding: 14px 0; font-size: 16px;
+  border-style: dashed;
+}
+.builder-footer {
+  display: flex; gap: 10px; margin-top: 6px; padding-bottom: 16px;
+}
+.builder-footer .btn { flex: 1; padding: 16px 0; font-size: 18px; }

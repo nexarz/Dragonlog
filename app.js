@@ -16,8 +16,13 @@ import {
 import {
   fmtTime, fmtSpeed, fmtDist, fmtDps, fmtPace500, escapeHtml,
 } from './modules/format.js';
+import {
+  loadWorkouts, upsertWorkout, deleteWorkout,
+  newWorkout, newInterval, intervalDisplay, fmtDur, totalWorkoutSec,
+} from './modules/workout.js';
+import { createPlayer, speak } from './modules/player.js';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const $ = id => document.getElementById(id);
 
 // ---------- State ----------
@@ -25,6 +30,12 @@ const state = createState();
 const prefs = loadPrefs();
 let wakeLock = null;
 let liveShakeReading = 0;
+
+// ---------- Workout Player ----------
+const player = createPlayer();
+let playerStatus  = null;
+let alertHideTimer = null;
+let currentEditWorkout = null;  // workout open in builder
 
 // ---------- Sensors ----------
 const strokeDetector = createStrokeDetector({
@@ -93,10 +104,12 @@ async function startSession() {
   wakeLock = await acquireWakeLock();
   toggleControls('running');
   renderSplits();
+  if (player.loaded) player.start();
 }
 function pauseSession() {
   state.paused = true;
   state.pausedAt = Date.now();
+  player.pause();
   toggleControls('paused');
 }
 function resumeSession() {
@@ -105,6 +118,7 @@ function resumeSession() {
     state.pausedAt = 0;
   }
   state.paused = false;
+  player.resume();
   toggleControls('running');
 }
 function stopSession() {
@@ -113,8 +127,10 @@ function stopSession() {
   state.running = false;
   state.paused = false;
   gps.stop();
+  player.stop();
   if (wakeLock) { try { wakeLock.release(); } catch {} wakeLock = null; }
   toggleControls('idle');
+  renderWorkoutPlayer();
   if (final.durationSec > 5) {
     try {
       addSession(final);
@@ -204,9 +220,83 @@ function updateFusion() {
   }
 }
 
+// ---------- Workout player render ----------
+function renderWorkoutPlayer() {
+  const el = $('workoutPlayer');
+  if (!player.loaded) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.className = 'workout-player';
+  const w = player.workout;
+
+  if (!state.running || !player.active) {
+    const totalMin = Math.round(totalWorkoutSec(w) / 60);
+    el.innerHTML = `
+      <div class="wp-header">
+        <div class="wp-name">${escapeHtml(w.name.toUpperCase())}</div>
+        <button class="btn btn-ghost btn-compact" id="unloadBtn">UNLOAD</button>
+      </div>
+      <div class="wp-ready">${w.intervals.length} INTERVALS · ~${totalMin} MIN · READY</div>`;
+    $('unloadBtn').addEventListener('click', () => {
+      player.unload(); renderWorkoutPlayer();
+    });
+    return;
+  }
+
+  if (!playerStatus || playerStatus.type === 'complete') {
+    el.style.display = 'none'; return;
+  }
+
+  const { currentInterval, nextInterval, remainingMs, totalIntervals, currentIdx } = playerStatus;
+  const pct   = Math.round(((currentIdx + 1) / totalIntervals) * 100);
+  const remS  = Math.ceil(remainingMs / 1000);
+  const remM  = Math.floor(remS / 60);
+  const remSS = String(remS % 60).padStart(2, '0');
+
+  el.innerHTML = `
+    <div class="wp-header">
+      <div class="wp-name">${escapeHtml(w.name.toUpperCase())}</div>
+      <div class="wp-progress">
+        <div class="wp-progress-bar"><div class="wp-progress-fill" style="width:${pct}%"></div></div>
+        <div class="wp-counter">${currentIdx + 1}/${totalIntervals}</div>
+      </div>
+    </div>
+    <div class="wp-body">
+      <div class="wp-current">
+        <div class="wp-label">CURRENT</div>
+        <div class="wp-interval-name">${intervalDisplay(currentInterval)}</div>
+        <div class="wp-countdown">${remM}:${remSS}</div>
+      </div>
+      <div class="wp-next">
+        ${nextInterval
+          ? `<div class="wp-label">NEXT</div>
+             <div class="wp-next-name">${intervalDisplay(nextInterval)}</div>
+             <div class="wp-next-dur">${fmtDur(nextInterval.durationSec)}</div>`
+          : `<div class="wp-label">FINAL INTERVAL</div>`}
+      </div>
+    </div>`;
+}
+
+function showWorkoutAlert(type) {
+  const el = $('workoutAlertBanner');
+  el.textContent = type === 'spm'
+    ? '⚡ INCREASE STROKE RATE'
+    : '⚡ DRIVE HARDER — MAINTAIN DPS';
+  el.style.display = '';
+  clearTimeout(alertHideTimer);
+  alertHideTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
 // ---------- Render loop ----------
 function render() {
   if (state.running) updateFusion();
+
+  // Tick workout player
+  if (state.running && !state.paused && player.active) {
+    const prof       = getActiveProfile(prefs);
+    const effectDps  = state.sessionDps != null ? state.sessionDps : prof.dps;
+    playerStatus = player.tick(state, effectDps);
+    if (playerStatus?.alert) showWorkoutAlert(playerStatus.alert);
+  }
 
   const ms = elapsedMs();
   $('timer').innerHTML = state.running
@@ -245,6 +335,7 @@ function render() {
     }
   }
   renderSpark();
+  renderWorkoutPlayer();
 }
 function renderSpark() {
   const svg = $('sparkSpm');
@@ -521,6 +612,7 @@ function initTabs() {
       btn.classList.add('active');
       $('view-' + btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'history') renderHistory();
+      if (btn.dataset.tab === 'plan') renderWorkoutList();
       if (btn.dataset.tab === 'settings') {
         $('sessionCount').textContent = loadSessions().length;
         renderProfileList();
@@ -595,6 +687,153 @@ function initSessionControls() {
   });
 }
 
+// ---------- Plan tab ----------
+function renderWorkoutList() {
+  const container = $('workoutListItems');
+  const workouts  = loadWorkouts();
+  if (!workouts.length) {
+    container.innerHTML = `<div class="empty">
+      <h2>No Workouts Yet</h2>
+      <p>Build your first structured workout to get started.</p>
+    </div>`;
+    return;
+  }
+  container.innerHTML = workouts.map(w => {
+    const totalMin = Math.round(totalWorkoutSec(w) / 60);
+    const chips = w.intervals.map(iv =>
+      `<span class="iv-chip ${iv.type}">${intervalDisplay(iv)}</span>`
+    ).join('');
+    return `<div class="workout-card">
+      <div class="workout-card-name">${escapeHtml(w.name)}</div>
+      <div class="workout-card-meta">${w.intervals.length} INTERVALS · ~${totalMin} MIN</div>
+      <div class="workout-card-chips">${chips}</div>
+      <div class="workout-card-actions">
+        <button class="btn btn-primary"  data-action="load" data-id="${w.id}">LOAD</button>
+        <button class="btn btn-ghost"    data-action="edit" data-id="${w.id}">EDIT</button>
+        <button class="btn btn-ghost danger-btn" data-action="del"  data-id="${w.id}">DEL</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => onWorkoutAction(btn.dataset.action, btn.dataset.id));
+  });
+}
+
+function onWorkoutAction(action, idStr) {
+  const id = parseInt(idStr, 10);
+  const workouts = loadWorkouts();
+  const w = workouts.find(x => x.id === id);
+  if (action === 'load') {
+    if (!w) return;
+    player.load(w);
+    // Switch to Train tab
+    document.querySelector('[data-tab="train"]').click();
+  } else if (action === 'edit') {
+    if (!w) return;
+    openBuilder(JSON.parse(JSON.stringify(w)));
+  } else if (action === 'del') {
+    if (!w || !confirm(`Delete "${w.name}"?`)) return;
+    deleteWorkout(id);
+    renderWorkoutList();
+  }
+}
+
+function openBuilder(workout) {
+  currentEditWorkout = workout || newWorkout();
+  $('builderTitle').textContent    = workout ? 'EDIT WORKOUT' : 'NEW WORKOUT';
+  $('workoutNameInput').value      = currentEditWorkout.name;
+  $('workoutListView').style.display    = 'none';
+  $('workoutBuilderView').style.display = '';
+  renderBuilderIntervals();
+}
+
+function closeBuilder() {
+  currentEditWorkout = null;
+  $('workoutListView').style.display    = '';
+  $('workoutBuilderView').style.display = 'none';
+}
+
+function renderBuilderIntervals() {
+  const list = $('builderIntervalList');
+  if (!currentEditWorkout.intervals.length) {
+    list.innerHTML = '<div class="splits-empty">No intervals yet — tap + Add Interval below</div>';
+    return;
+  }
+  list.innerHTML = currentEditWorkout.intervals.map((iv, i) => {
+    const isRest = iv.type === 'rest' || iv.type === 'cooldown';
+    const minVal = Math.floor(iv.durationSec / 60);
+    const secVal = iv.durationSec % 60;
+    return `<div class="interval-row" data-idx="${i}">
+      <div class="iv-num">${i + 1}</div>
+      <select class="iv-type-select" data-field="type">
+        <option value="work"     ${iv.type === 'work'     ? 'selected' : ''}>WORK</option>
+        <option value="rest"     ${iv.type === 'rest'     ? 'selected' : ''}>REST</option>
+        <option value="warmup"   ${iv.type === 'warmup'   ? 'selected' : ''}>WARMUP</option>
+        <option value="cooldown" ${iv.type === 'cooldown' ? 'selected' : ''}>COOLDOWN</option>
+      </select>
+      <div class="iv-ps-wrap" ${isRest ? 'style="visibility:hidden"' : ''}>
+        <span class="iv-ps-label">PS</span>
+        <input class="iv-ps" type="number" min="1" max="10" value="${iv.ps}" data-field="ps">
+      </div>
+      <div class="iv-dur-wrap">
+        <input class="iv-min" type="number" min="0" max="99" value="${minVal}" data-field="min">
+        <span class="iv-dur-sep">:</span>
+        <input class="iv-sec" type="number" min="0" max="59" step="5" value="${String(secVal).padStart(2,'0')}" data-field="sec">
+      </div>
+      <button class="btn btn-ghost btn-compact danger-btn iv-del" data-field="del">✕</button>
+    </div>`;
+  }).join('');
+
+  // Event delegation on the list
+  list.querySelectorAll('.interval-row').forEach(row => {
+    const idx = parseInt(row.dataset.idx, 10);
+    row.addEventListener('change', e => {
+      const field = e.target.dataset.field;
+      if (!field) return;
+      const iv = currentEditWorkout.intervals[idx];
+      if (field === 'type') {
+        iv.type = e.target.value;
+        renderBuilderIntervals();
+      } else if (field === 'ps') {
+        iv.ps = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 6));
+      } else if (field === 'min') {
+        const sec = iv.durationSec % 60;
+        iv.durationSec = Math.max(0, (parseInt(e.target.value, 10) || 0)) * 60 + sec;
+      } else if (field === 'sec') {
+        const min = Math.floor(iv.durationSec / 60);
+        iv.durationSec = min * 60 + Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
+      }
+    });
+    row.querySelector('[data-field="del"]').addEventListener('click', () => {
+      currentEditWorkout.intervals.splice(idx, 1);
+      renderBuilderIntervals();
+    });
+  });
+}
+
+function initPlanControls() {
+  $('newWorkoutBtn').addEventListener('click', () => openBuilder(null));
+  $('addIntervalBtn').addEventListener('click', () => {
+    if (!currentEditWorkout) return;
+    currentEditWorkout.intervals.push(newInterval('work', 6, 120));
+    renderBuilderIntervals();
+  });
+  $('builderCancelBtn').addEventListener('click', closeBuilder);
+  $('builderSaveBtn').addEventListener('click', () => {
+    if (!currentEditWorkout) return;
+    const name = $('workoutNameInput').value.trim();
+    if (!name) { alert('Please enter a workout name.'); return; }
+    currentEditWorkout.name = name;
+    if (!currentEditWorkout.intervals.length) {
+      alert('Add at least one interval before saving.'); return;
+    }
+    upsertWorkout(currentEditWorkout);
+    closeBuilder();
+    renderWorkoutList();
+  });
+}
+
 // ---------- Re-acquire wake lock when tab becomes visible ----------
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && state.running && !wakeLock) {
@@ -606,6 +845,7 @@ document.addEventListener('visibilitychange', async () => {
 initTabs();
 initSettingsControls();
 initSessionControls();
+initPlanControls();
 updateUnitLabels();
 renderProfilePills();
 $('sessionCount').textContent = loadSessions().length;
