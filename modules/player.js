@@ -162,7 +162,7 @@ export function createPlayer() {
         const nextIdx = currentIdx + 1;
         if (nextIdx >= workout.intervals.length) {
           active = false;
-          speak('Workout complete. Outstanding.');
+          speak('Workout complete. Good job, Fah Queue.');
           return { type: 'complete', currentIdx, totalIntervals: workout.intervals.length };
         }
         currentIdx    = nextIdx;
