@@ -3,8 +3,8 @@
   --panel: #161d1f;
   --panel-2: #1f2729;
   --ink: #f2f5f3;
-  --ink-dim: #a3acaf;
-  --ink-faint: #6a7378;
+  --ink-dim: #c8d0d3;        /* small labels & captions — brighter HUD feel */
+  --ink-faint: #828b8f;
   --accent: #ff3c28;        /* dragon red */
   --accent-2: #ffb800;       /* gold */
   --ok: #2ecc71;
@@ -757,10 +757,11 @@ svg.spark { width: 100%; height: 80px; display: block; }
 }
 .interval-row {
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent-2);
   border-radius: 4px;
   padding: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   display: grid;
   grid-template-columns: 28px 1fr auto;
   grid-template-rows: auto auto;
@@ -774,13 +775,14 @@ svg.spark { width: 100%; height: 80px; display: block; }
   align-self: center; text-align: center;
 }
 .iv-type-select {
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
   color: var(--ink);
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 3px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px; letter-spacing: .06em;
+  font-weight: 600;
   width: 100% !important;
   grid-column: 2; grid-row: 1;
 }
@@ -804,6 +806,8 @@ svg.spark { width: 100%; height: 80px; display: block; }
   text-align: center;
   padding: 8px 4px !important;
   font-size: 16px !important;
+  border-color: var(--border-strong) !important;
+  background: var(--bg) !important;
 }
 .iv-dur-wrap {
   display: flex; align-items: center; gap: 4px;
@@ -819,6 +823,8 @@ svg.spark { width: 100%; height: 80px; display: block; }
   text-align: center;
   padding: 8px 4px !important;
   font-size: 16px !important;
+  border-color: var(--border-strong) !important;
+  background: var(--bg) !important;
 }
 .workout-add-interval {
   width: 100%; margin: 8px 0;
