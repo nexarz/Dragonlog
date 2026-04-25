@@ -2,7 +2,23 @@
 // Strategy: cache shell on install; on fetch, try network first for HTML (so updates are fast),
 // cache-first for other assets. Works offline once installed.
 
-const CACHE = 'dragonlog-v2';
+const CACHE = 'dragonlog-v3';
+
+const VOICE_CLIPS = (() => {
+  const list = [
+    '1', '2', '3', '4', '5',
+    '10sec', 'final-push',
+    'rest', 'cooldown',
+    'next-rest', 'next-cooldown',
+    'workout-loaded', 'workout-complete',
+    'alert-spm', 'alert-dps',
+  ];
+  for (let i = 1; i <= 10; i++) {
+    list.push(`ps${i}-go`, `warmup-ps${i}`, `next-ps${i}`, `next-warmup-ps${i}`);
+  }
+  return list.map(n => `./voices/${n}.mp3`);
+})();
+
 const SHELL = [
   './',
   './index.html',
@@ -15,8 +31,10 @@ const SHELL = [
   './modules/format.js',
   './modules/workout.js',
   './modules/player.js',
+  './modules/audio.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  ...VOICE_CLIPS,
 ];
 
 self.addEventListener('install', (event) => {

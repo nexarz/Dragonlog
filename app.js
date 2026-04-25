@@ -20,7 +20,7 @@ import {
   loadWorkouts, upsertWorkout, deleteWorkout,
   newWorkout, newInterval, intervalDisplay, fmtDur, totalWorkoutSec,
 } from './modules/workout.js';
-import { createPlayer, speak } from './modules/player.js';
+import { createPlayer } from './modules/player.js';
 
 const APP_VERSION = '1.1.0';
 const $ = id => document.getElementById(id);

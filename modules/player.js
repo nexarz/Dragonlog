@@ -1,46 +1,9 @@
 // Workout playback engine: interval timing, voice cues, performance monitoring.
+// Voice is played from pre-recorded audio clips (modules/audio.js) for a
+// consistent custom voice on every device.
 
 import { computeSpm } from './fusion.js';
-
-// ---- Voice ----
-let _voice = null, _voicePicked = false;
-
-function pickVoice() {
-  if (_voicePicked) return _voice;
-  const voices = speechSynthesis.getVoices();
-  if (!voices.length) return null;
-  _voicePicked = true;
-  // Prefer commanding female voices in priority order
-  const PREFERRED = [
-    'Google UK English Female',
-    'Microsoft Aria Online (Natural) - English (United States)',
-    'Microsoft Jenny Online (Natural) - English (United States)',
-    'Microsoft Zira - English (United States)',
-    'Samantha', 'Karen', 'Victoria', 'Moira', 'Tessa',
-  ];
-  for (const name of PREFERRED) {
-    const v = voices.find(v => v.name === name);
-    if (v) return (_voice = v);
-  }
-  const female = voices.find(v => v.lang.startsWith('en') && /female|woman/i.test(v.name));
-  return (_voice = female || voices.find(v => v.lang.startsWith('en')) || voices[0] || null);
-}
-
-if ('speechSynthesis' in window) {
-  speechSynthesis.addEventListener('voiceschanged', () => { _voicePicked = false; pickVoice(); });
-}
-
-export function speak(text) {
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(text);
-  const v = pickVoice();
-  if (v) utt.voice = v;
-  utt.pitch = 0.82;   // lower = more authority
-  utt.rate  = 1.08;   // crisp and direct
-  utt.volume = 1;
-  speechSynthesis.speak(utt);
-}
+import * as audio from './audio.js';
 
 // ---- Player factory ----
 export function createPlayer() {
@@ -56,27 +19,13 @@ export function createPlayer() {
   let lastSpmAlertMs     = 0;
   let lastDpsAlertMs     = 0;
 
-  const announced = new Set();   // keys like "2_30", "2_10" to prevent double-firing
+  const announced = new Set();   // keys like "2_10", "2_cd5" to prevent double-firing
 
   function resetIntervalState() {
     baselineSpm        = null;
     baselineSpmSamples = [];
     lastSpmAlertMs     = 0;
     lastDpsAlertMs     = 0;
-  }
-
-  function announceInterval(iv) {
-    if      (iv.type === 'rest')     speak('Rest.');
-    else if (iv.type === 'warmup')   speak(`Warm up. PS ${iv.ps}.`);
-    else if (iv.type === 'cooldown') speak('Cool down.');
-    else speak(`PS ${iv.ps}. ${iv.ps * 10} percent. Go.`);
-  }
-
-  function ivName(iv) {
-    if (iv.type === 'rest')     return 'rest';
-    if (iv.type === 'warmup')   return `warm up, PS ${iv.ps}`;
-    if (iv.type === 'cooldown') return 'cool down';
-    return `PS ${iv.ps}, ${iv.ps * 10} percent`;
   }
 
   return {
@@ -86,15 +35,14 @@ export function createPlayer() {
     get currentIdx() { return currentIdx; },
 
     load(w) {
-      if ('speechSynthesis' in window) speechSynthesis.cancel();
+      audio.stop();
       workout = w; currentIdx = -1; active = false; pauseStart = 0;
       announced.clear(); resetIntervalState();
-      // Warm up TTS engine + confirm to user
-      speak(`Workout loaded. ${w.name}. Press start when ready.`);
+      audio.play('workout-loaded');
     },
 
     unload() {
-      if ('speechSynthesis' in window) speechSynthesis.cancel();
+      audio.stop();
       workout = null; currentIdx = -1; active = false;
     },
 
@@ -105,7 +53,7 @@ export function createPlayer() {
       intervalStart = Date.now();
       pauseStart    = 0;
       announced.clear(); resetIntervalState();
-      announceInterval(workout.intervals[0]);
+      audio.play(audio.intervalClip(workout.intervals[0]));
     },
 
     pause() {
@@ -114,19 +62,17 @@ export function createPlayer() {
 
     resume() {
       if (pauseStart) {
-        // Push intervalStart forward by the pause duration so elapsed stays correct
         intervalStart += Date.now() - pauseStart;
         pauseStart = 0;
       }
     },
 
     stop() {
-      if ('speechSynthesis' in window) speechSynthesis.cancel();
+      audio.stop();
       active = false; currentIdx = -1; pauseStart = 0;
     },
 
     // Call from render loop every ~100ms while session is running and not paused.
-    // Returns a status object, or null if player is not active.
     tick(state, profileDps) {
       if (!active || currentIdx < 0 || !workout) return null;
       const iv = workout.intervals[currentIdx];
@@ -137,18 +83,19 @@ export function createPlayer() {
       const remaining = iv.durationSec * 1000 - elapsed;
       const k         = currentIdx;
 
-      // --- Countdown cues ---
-if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
+      // 10-second cue: announce + preview next interval
+      if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
         announced.add(`${k}_10`);
         const next = workout.intervals[currentIdx + 1];
-        speak(next ? `10 seconds. Next: ${ivName(next)}.` : '10 seconds. Final push.');
+        if (next) audio.playQueue('10sec', audio.nextIntervalClip(next));
+        else      audio.playQueue('10sec', 'final-push');
       }
-      // 5-second verbal countdown: fires as soon as remaining drops below each second mark
+      // 5-4-3-2-1 verbal countdown
       for (let s = 5; s >= 1; s--) {
         const ck = `${k}_cd${s}`;
         if (remaining <= s * 1000 && !announced.has(ck)) {
           announced.add(ck);
-          speak(String(s));
+          audio.play(String(s));
           break;
         }
       }
@@ -158,13 +105,13 @@ if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
         const nextIdx = currentIdx + 1;
         if (nextIdx >= workout.intervals.length) {
           active = false;
-          speak('Workout complete. Good job, Fah Queue.');
+          audio.play('workout-complete');
           return { type: 'complete', currentIdx, totalIntervals: workout.intervals.length };
         }
         currentIdx    = nextIdx;
         intervalStart = now;
         resetIntervalState();
-        announceInterval(workout.intervals[currentIdx]);
+        audio.play(audio.intervalClip(workout.intervals[currentIdx]));
         return {
           type: 'next', currentIdx,
           totalIntervals:  workout.intervals.length,
@@ -181,30 +128,27 @@ if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
         const spm    = computeSpm(state.strokes);
         const elSec  = elapsed / 1000;
 
-        // Build SPM baseline during first 25 s of interval
         if (elSec < 25 && spm > 5) {
           baselineSpmSamples.push(spm);
         } else if (baselineSpm === null && baselineSpmSamples.length >= 3) {
           baselineSpm = baselineSpmSamples.reduce((a, b) => a + b) / baselineSpmSamples.length;
         }
 
-        // SPM drop alert: >15% below baseline, cooldown 18 s
         if (baselineSpm !== null && spm > 5) {
           const drop = (baselineSpm - spm) / baselineSpm;
           if (drop > 0.15 && now - lastSpmAlertMs > 18000) {
             lastSpmAlertMs = now;
-            speak('Stroke rate dropping. Increase cadence.');
+            audio.play('alert-spm');
             alert = 'spm';
           }
         }
 
-        // DPS drop alert: >12% below profile DPS, cooldown 25 s
         if (!alert && state.strokes.length > 15 && profileDps > 0 && state.fusedDistance > 0) {
           const liveDps = state.fusedDistance / state.strokes.length;
           const dpsDrop = (profileDps - liveDps) / profileDps;
           if (dpsDrop > 0.12 && now - lastDpsAlertMs > 25000) {
             lastDpsAlertMs = now;
-            speak('Drive through the water. Maintain distance per stroke.');
+            audio.play('alert-dps');
             alert = 'dps';
           }
         }
@@ -220,3 +164,6 @@ if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
     },
   };
 }
+
+// Re-export speak as a no-op kept for any external callers (none currently)
+export function speak() {}
