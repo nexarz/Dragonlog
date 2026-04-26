@@ -371,7 +371,7 @@ function renderHistory() {
     const profileBadge = s.profileName
       ? `<span class="session-profile-badge">· ${escapeHtml(s.profileName.toUpperCase())}</span>`
       : '';
-    return `<div class="session-card">
+    return `<div class="session-card" data-id="${s.id}">
       <div class="session-date">${dateStr}${profileBadge}</div>
       <div class="session-stats">
         <div class="session-stat"><div class="l">TIME</div><div class="v">${durStr}</div></div>
@@ -381,6 +381,69 @@ function renderHistory() {
       </div>
     </div>`;
   }).join('');
+
+  list.querySelectorAll('.session-card').forEach(card => {
+    card.addEventListener('click', () => openSessionDetail(parseInt(card.dataset.id, 10)));
+  });
+}
+
+function openSessionDetail(id) {
+  const sessions = loadSessions();
+  const session = sessions.find(s => s.id === id);
+  if (!session) return;
+
+  const d = new Date(session.date);
+  const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) +
+                  ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const durStr = fmtTime(session.durationSec * 1000, false);
+  const avgDps = session.avgDps > 0 ? fmtDps(session.avgDps, prefs.units) : '—';
+  const pace   = session.avgSpeedMS > 0 ? fmtPace500(session.avgSpeedMS) : '—';
+  const dpsUnit = prefs.units === 'metric' ? 'm' : 'yd';
+
+  $('historyDetailContent').innerHTML = `
+    <div class="setup">
+      <h3>${dateStr}</h3>
+      <div class="setup-row">
+        <div class="setup-label">Profile</div>
+        <div class="setup-val">${escapeHtml(session.profileName || 'Unknown')}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Duration</div>
+        <div class="setup-val">${durStr}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Distance</div>
+        <div class="setup-val">${fmtDist(session.distanceM, prefs.units)} ${dpsUnit}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Total Strokes</div>
+        <div class="setup-val">${session.strokes}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Avg Stroke Rate</div>
+        <div class="setup-val">${session.avgSpm} SPM</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Avg Speed</div>
+        <div class="setup-val">${fmtSpeed(session.avgSpeedMS, prefs.units)}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Avg Pace /500m</div>
+        <div class="setup-val">${pace}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Distance per Stroke</div>
+        <div class="setup-val">${avgDps} ${dpsUnit}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Distance Source</div>
+        <div class="setup-val">${escapeHtml(session.distMode || 'fused')}</div>
+      </div>
+    </div>
+  `;
+
+  $('historyList').style.display = 'none';
+  $('historyDetailView').style.display = 'block';
 }
 
 // ---------- Profiles ----------
@@ -587,7 +650,12 @@ function initTabs() {
         // Re-apply correct controls based on session state
         toggleControls(state.running ? (state.paused ? 'paused' : 'running') : 'idle');
       }
-      if (btn.dataset.tab === 'history') renderHistory();
+      if (btn.dataset.tab === 'history') {
+        // Always start in list view, not detail
+        $('historyDetailView').style.display = 'none';
+        $('historyList').style.display = '';
+        renderHistory();
+      }
       if (btn.dataset.tab === 'plan') renderWorkoutList();
       if (btn.dataset.tab === 'settings') {
         $('sessionCount').textContent = loadSessions().length;
@@ -825,6 +893,10 @@ initTabs();
 initSettingsControls();
 initSessionControls();
 initPlanControls();
+$('backToHistoryBtn').addEventListener('click', () => {
+  $('historyDetailView').style.display = 'none';
+  $('historyList').style.display = '';
+});
 updateUnitLabels();
 renderProfilePills();
 $('sessionCount').textContent = loadSessions().length;

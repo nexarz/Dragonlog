@@ -415,7 +415,10 @@ input[type="text"] { width: auto; }
   margin-bottom: 10px;
   cursor: pointer;
   position: relative;
+  transition: border-color .15s, transform .08s;
 }
+.session-card:active { transform: scale(.99); }
+.session-card:hover  { border-color: var(--border-strong); }
 .session-card::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
   background: var(--accent);
