@@ -1,5 +1,7 @@
 // State management: live session state + persistent prefs/sessions with schema versioning.
 
+import { get as idbGet, set as idbSet, del as idbDel } from './idb.js';
+
 const PREF_KEY     = 'dragonlog_prefs';
 const SESSIONS_KEY = 'dragonlog_sessions';
 
@@ -88,40 +90,55 @@ export function getActiveProfile(prefs) {
   return prefs.profiles.find(p => p.id === prefs.activeProfileId) || prefs.profiles[0];
 }
 
-// ----- SESSIONS -----
+// ----- SESSIONS (IndexedDB, async) -----
+// IndexedDB gives us hundreds of MB and an async API that won't block the
+// main thread when serialising long sessions. On first read we silently
+// migrate any pre-existing localStorage data into IDB and clean up.
 
-export function loadSessions() {
+export async function loadSessions() {
   try {
-    const raw = localStorage.getItem(SESSIONS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(migrateSession).filter(Boolean);
+    let sessions = await idbGet(SESSIONS_KEY);
+    if (sessions === undefined) {
+      const rawLocal = localStorage.getItem(SESSIONS_KEY);
+      if (rawLocal) {
+        try {
+          const parsed = JSON.parse(rawLocal);
+          sessions = Array.isArray(parsed) ? parsed : [];
+        } catch { sessions = []; }
+        await idbSet(SESSIONS_KEY, sessions);
+        localStorage.removeItem(SESSIONS_KEY);
+        console.log('Migrated', sessions.length, 'sessions from localStorage to IndexedDB');
+      } else {
+        sessions = [];
+      }
+    }
+    if (!Array.isArray(sessions)) return [];
+    return sessions.map(migrateSession).filter(Boolean);
   } catch (e) {
     console.warn('Failed to load sessions:', e);
     return [];
   }
 }
 
-export function saveSessions(sessions) {
+export async function saveSessions(sessions) {
   try {
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    await idbSet(SESSIONS_KEY, sessions);
   } catch (e) {
-    // Quota errors are the most likely culprit — surface to caller
-    console.error('Failed to save sessions:', e);
+    console.error('Failed to save sessions to IndexedDB:', e);
     throw e;
   }
 }
 
-export function addSession(session) {
-  const arr = loadSessions();
+export async function addSession(session) {
+  const arr = await loadSessions();
   arr.unshift({ ...session, schemaVersion: SCHEMA_VERSION });
-  saveSessions(arr);
+  await saveSessions(arr);
   return arr;
 }
 
-export function clearSessions() {
-  localStorage.removeItem(SESSIONS_KEY);
+export async function clearSessions() {
+  await idbDel(SESSIONS_KEY);
+  localStorage.removeItem(SESSIONS_KEY);   // belt + braces in case migration was skipped
 }
 
 function migrateSession(s) {

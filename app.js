@@ -128,7 +128,7 @@ function resumeSession() {
   player.resume();
   toggleControls('running');
 }
-function stopSession() {
+async function stopSession() {
   if (!state.running) return;
   const final = buildSession();
   state.running = false;
@@ -140,9 +140,9 @@ function stopSession() {
   renderWorkoutPlayer();
   if (final.durationSec > 5) {
     try {
-      addSession(final);
+      await addSession(final);
     } catch (e) {
-      alert('Could not save session — storage full? Try exporting and clearing old sessions.');
+      alert('Could not save session — storage error. Try exporting and clearing old sessions.');
     }
   }
 }
@@ -384,9 +384,9 @@ function renderSpark() {
 
 
 // ---------- History ----------
-function renderHistory() {
+async function renderHistory() {
   const list = $('historyList');
-  const sessions = loadSessions();
+  const sessions = await loadSessions();
   if (!sessions.length) {
     list.innerHTML = `<div class="empty">
       <h2>No Sessions Yet</h2>
@@ -415,8 +415,8 @@ function renderHistory() {
 
 }
 
-function openSessionDetail(id) {
-  const sessions = loadSessions();
+async function openSessionDetail(id) {
+  const sessions = await loadSessions();
   const session = sessions.find(s => s.id === id);
   if (!session) return;
 
@@ -649,8 +649,8 @@ function initSettingsControls() {
     renderProfilePills();
     renderProfileList();
   });
-  $('exportBtn').addEventListener('click', () => {
-    const data = loadSessions();
+  $('exportBtn').addEventListener('click', async () => {
+    const data = await loadSessions();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -659,9 +659,9 @@ function initSettingsControls() {
     a.click();
     URL.revokeObjectURL(url);
   });
-  $('clearBtn').addEventListener('click', () => {
+  $('clearBtn').addEventListener('click', async () => {
     if (confirm('Delete all saved sessions? This cannot be undone.')) {
-      clearSessions();
+      await clearSessions();
       $('sessionCount').textContent = '0';
       renderHistory();
     }
@@ -697,7 +697,7 @@ function initTabs() {
       }
       if (btn.dataset.tab === 'plan') renderWorkoutList();
       if (btn.dataset.tab === 'settings') {
-        $('sessionCount').textContent = loadSessions().length;
+        loadSessions().then(s => { $('sessionCount').textContent = s.length; });
         renderProfileList();
       }
     });
@@ -1021,7 +1021,7 @@ $('historyList').addEventListener('click', e => {
 });
 updateUnitLabels();
 renderProfilePills();
-$('sessionCount').textContent = loadSessions().length;
+loadSessions().then(s => { $('sessionCount').textContent = s.length; });
 registerServiceWorker();
 
 setInterval(render, 100);
