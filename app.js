@@ -22,6 +22,7 @@ import {
 } from './modules/workout.js';
 import { createPlayer } from './modules/player.js';
 import { createPhysicsTracker } from './modules/physics.js';
+import { encodeSession, decodeSession } from './modules/share.js';
 
 const APP_VERSION = '1.1.0';
 const $ = id => document.getElementById(id);
@@ -35,6 +36,7 @@ let liveShakeReading = 0;
 // ---------- Workout Player + Physics ----------
 const player = createPlayer();
 const physics = createPhysicsTracker();
+let currentViewedSessionId = null;   // for share button
 let playerStatus  = null;
 let alertHideTimer = null;
 let currentEditWorkout = null;  // workout open in builder
@@ -564,10 +566,51 @@ function initTimelineScrubber(timeline) {
   surface.addEventListener('mouseleave', () => { dragging = false; fadeOut(); });
 }
 
+// Render a session received via shared URL (no IndexedDB lookup)
+function renderSharedSession(session) {
+  currentViewedSessionId = null;
+  // Hide SHARE button — recipient can re-share by copying URL from address bar
+  $('shareSessionBtn').style.display = 'none';
+
+  const d = new Date(session.date);
+  const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) +
+                  ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const durStr  = fmtTime(session.durationSec * 1000, false);
+  const avgDps  = session.avgDps > 0 ? fmtDps(session.avgDps, prefs.units) : '—';
+  const pace    = session.avgSpeedMS > 0 ? fmtPace500(session.avgSpeedMS) : '—';
+  const dpsUnit = prefs.units === 'metric' ? 'm' : 'yd';
+
+  $('historyDetailContent').innerHTML = `
+    <div class="shared-banner">SHARED SESSION · VIEW ONLY</div>
+    <div class="setup">
+      <h3>${dateStr}</h3>
+      <div class="setup-row"><div class="setup-label">Profile</div><div class="setup-val">${escapeHtml(session.profileName || 'Unknown')}</div></div>
+      <div class="setup-row"><div class="setup-label">Duration</div><div class="setup-val">${durStr}</div></div>
+      <div class="setup-row"><div class="setup-label">Distance</div><div class="setup-val">${fmtDist(session.distanceM, prefs.units)} ${dpsUnit}</div></div>
+      <div class="setup-row"><div class="setup-label">Avg Stroke Rate</div><div class="setup-val">${session.avgSpm} SPM</div></div>
+      <div class="setup-row"><div class="setup-label">Avg Pace /500m</div><div class="setup-val">${pace}</div></div>
+      <div class="setup-row"><div class="setup-label">Distance per Stroke</div><div class="setup-val">${avgDps} ${dpsUnit}</div></div>
+      ${session.avgCheck > 0 ? `<div class="setup-row"><div class="setup-label">Avg Stern Check</div><div class="setup-val">${session.avgCheck.toFixed(2)} m/s²</div></div>` : ''}
+      ${session.avgBounce > 0 ? `<div class="setup-row"><div class="setup-label">Avg Bounce</div><div class="setup-val">${session.avgBounce.toFixed(2)} m/s²</div></div>` : ''}
+    </div>
+    ${session.timeline && session.timeline.length > 2 ? renderTouchTimeline(session.timeline) : ''}
+  `;
+
+  if (session.timeline && session.timeline.length > 2) {
+    initTimelineScrubber(session.timeline);
+  }
+
+  $('historyList').style.display = 'none';
+  $('historyDetailView').style.display = 'block';
+  document.querySelector('[data-tab="history"]').click();
+}
+
 async function openSessionDetail(id) {
   const sessions = await loadSessions();
   const session = sessions.find(s => s.id === id);
   if (!session) return;
+  currentViewedSessionId = id;
+  $('shareSessionBtn').style.display = '';
 
   const d = new Date(session.date);
   const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) +
@@ -1164,8 +1207,49 @@ initSessionControls();
 initPlanControls();
 initInfoModal();
 $('backToHistoryBtn').addEventListener('click', () => {
+  // Clean the share param so the user isn't trapped on the shared session
+  if (location.search.includes('s=')) {
+    history.replaceState({}, document.title, location.pathname);
+  }
+  currentViewedSessionId = null;
   $('historyDetailView').style.display = 'none';
   $('historyList').style.display = '';
+});
+
+$('shareSessionBtn').addEventListener('click', async () => {
+  if (!currentViewedSessionId) return;
+  const sessions = await loadSessions();
+  const session = sessions.find(s => s.id === currentViewedSessionId);
+  if (!session) return;
+  let encoded;
+  try {
+    encoded = await encodeSession(session);
+  } catch (e) {
+    console.error('Encode failed:', e);
+    alert('Could not build a shareable link.');
+    return;
+  }
+  const url = `${location.origin}${location.pathname}?s=${encoded}`;
+  console.log(`Share URL length: ${url.length} chars`);
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Dragonlog Session',
+        text: 'Check out my pacing and stroke rate timeline:',
+        url,
+      });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      // Fall through to clipboard
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    alert('Link copied to clipboard!');
+  } catch {
+    alert('Unable to copy link.');
+  }
 });
 // Delegated click handler: delete button > swipe-open card > open detail
 $('historyList').addEventListener('click', e => {
@@ -1251,3 +1335,20 @@ registerServiceWorker();
 
 setInterval(render, 100);
 render();
+
+// ---------- Magic-link interceptor ----------
+// If the URL contains ?s=<encoded>, decode the payload and open it in the
+// History detail view. The recipient sees the shared session immediately,
+// no IndexedDB required.
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const encoded = params.get('s');
+  if (!encoded) return;
+  try {
+    const session = await decodeSession(encoded);
+    renderSharedSession(session);
+  } catch (e) {
+    console.warn('Failed to decode shared link:', e);
+    alert('This shared link is invalid or corrupted.');
+  }
+})();
