@@ -600,9 +600,16 @@ function renderSharedSession(session) {
     initTimelineScrubber(session.timeline);
   }
 
+  // Switch to History tab manually — calling .click() would fire the tab
+  // handler, which resets historyDetailView to hidden.
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelector('[data-tab="history"]').classList.add('active');
+  $('view-history').classList.add('active');
+  document.querySelectorAll('.controls').forEach(c => { c.style.display = 'none'; });
+
   $('historyList').style.display = 'none';
   $('historyDetailView').style.display = 'block';
-  document.querySelector('[data-tab="history"]').click();
 }
 
 async function openSessionDetail(id) {
