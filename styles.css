@@ -424,6 +424,36 @@ input[type="text"] { width: auto; }
 }
 .session-card:active { transform: scale(.99); }
 .session-card:hover  { border-color: var(--border-strong); }
+
+/* Swipe-to-delete wrapper: card slides left to reveal a red DELETE behind it */
+.session-card-wrap {
+  position: relative;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.session-card-wrap > .session-card {
+  margin-bottom: 0;
+  transition: transform .25s ease, border-color .15s;
+  touch-action: pan-y;            /* allow vertical scroll, intercept horizontal */
+  z-index: 1;
+  will-change: transform;
+}
+.session-card-wrap > .session-card:active { transform: none; }   /* override the scale tap effect */
+.session-card-delete {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 100px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px; letter-spacing: .2em;
+  cursor: pointer;
+  z-index: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.session-card-delete:active { background: #d62e1e; }
 .session-card::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
   background: var(--accent);

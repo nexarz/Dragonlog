@@ -397,6 +397,34 @@ function renderSpark() {
 }
 
 
+// ---------- Swipe-to-delete state ----------
+let openSwipeWrap      = null;
+let pointerDrag        = null;   // { id, startX, startY, startOffset, wrap, card, dir }
+let suppressClickUntil = 0;
+
+function openSwipe(wrap) {
+  if (openSwipeWrap && openSwipeWrap !== wrap) closeSwipe(openSwipeWrap);
+  const card = wrap.querySelector('.session-card');
+  if (card) card.style.transform = 'translateX(-100px)';
+  wrap.classList.add('swipe-open');
+  openSwipeWrap = wrap;
+}
+function closeSwipe(wrap) {
+  if (!wrap) return;
+  const card = wrap.querySelector('.session-card');
+  if (card) card.style.transform = '';
+  wrap.classList.remove('swipe-open');
+  if (openSwipeWrap === wrap) openSwipeWrap = null;
+}
+async function deleteSessionById(id) {
+  if (!confirm('Delete this session?')) return;
+  const sessions = await loadSessions();
+  const filtered = sessions.filter(s => s.id !== id);
+  await saveSessions(filtered);
+  $('sessionCount').textContent = filtered.length;
+  renderHistory();
+}
+
 // ---------- History ----------
 async function renderHistory() {
   const list = $('historyList');
@@ -416,16 +444,21 @@ async function renderHistory() {
     const profileBadge = s.profileName
       ? `<span class="session-profile-badge">· ${escapeHtml(s.profileName.toUpperCase())}</span>`
       : '';
-    return `<div class="session-card" data-id="${s.id}">
-      <div class="session-date">${dateStr}${profileBadge}</div>
-      <div class="session-stats">
-        <div class="session-stat"><div class="l">TIME</div><div class="v">${durStr}</div></div>
-        <div class="session-stat"><div class="l">DIST</div><div class="v">${fmtDist(s.distanceM, prefs.units)}</div></div>
-        <div class="session-stat"><div class="l">AVG SPM</div><div class="v">${s.avgSpm}</div></div>
-        <div class="session-stat"><div class="l">AVG SPD</div><div class="v">${fmtSpeed(s.avgSpeedMS, prefs.units)}</div></div>
+    return `<div class="session-card-wrap">
+      <button class="session-card-delete" data-action="delete-session" data-id="${s.id}" aria-label="Delete session">DELETE</button>
+      <div class="session-card" data-id="${s.id}">
+        <div class="session-date">${dateStr}${profileBadge}</div>
+        <div class="session-stats">
+          <div class="session-stat"><div class="l">TIME</div><div class="v">${durStr}</div></div>
+          <div class="session-stat"><div class="l">DIST</div><div class="v">${fmtDist(s.distanceM, prefs.units)}</div></div>
+          <div class="session-stat"><div class="l">AVG SPM</div><div class="v">${s.avgSpm}</div></div>
+          <div class="session-stat"><div class="l">AVG SPD</div><div class="v">${fmtSpeed(s.avgSpeedMS, prefs.units)}</div></div>
+        </div>
       </div>
     </div>`;
   }).join('');
+  // After re-render, no swipes are open
+  openSwipeWrap = null;
 
 }
 
@@ -1134,12 +1167,83 @@ $('backToHistoryBtn').addEventListener('click', () => {
   $('historyDetailView').style.display = 'none';
   $('historyList').style.display = '';
 });
-// Delegated click handler for session cards
+// Delegated click handler: delete button > swipe-open card > open detail
 $('historyList').addEventListener('click', e => {
+  if (Date.now() < suppressClickUntil) return;
+
+  const delBtn = e.target.closest('button[data-action="delete-session"]');
+  if (delBtn) {
+    deleteSessionById(parseInt(delBtn.dataset.id, 10));
+    return;
+  }
+
   const card = e.target.closest('.session-card[data-id]');
   if (!card) return;
+
+  const wrap = card.closest('.session-card-wrap');
+  if (wrap && wrap.classList.contains('swipe-open')) {
+    closeSwipe(wrap);
+    return;
+  }
   openSessionDetail(parseInt(card.dataset.id, 10));
 });
+
+// Swipe gesture: pointer-based, threshold-snap, vertical-scroll-friendly
+const historyListEl = $('historyList');
+historyListEl.addEventListener('pointerdown', e => {
+  if (e.target.closest('.session-card-delete')) return;     // tap on DELETE — let click handle it
+  const wrap = e.target.closest('.session-card-wrap');
+  if (!wrap) return;
+  const card = wrap.querySelector('.session-card');
+  if (!card) return;
+  const m = (card.style.transform || '').match(/translateX\((-?\d+(?:\.\d+)?)/);
+  pointerDrag = {
+    id:           e.pointerId,
+    startX:       e.clientX,
+    startY:       e.clientY,
+    startOffset:  m ? parseFloat(m[1]) : 0,
+    wrap, card,
+    dir:          null,
+  };
+  card.style.transition = 'none';
+});
+historyListEl.addEventListener('pointermove', e => {
+  if (!pointerDrag || pointerDrag.id !== e.pointerId) return;
+  const dx = e.clientX - pointerDrag.startX;
+  const dy = e.clientY - pointerDrag.startY;
+  if (pointerDrag.dir === null) {
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+      pointerDrag.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+    } else return;
+  }
+  if (pointerDrag.dir === 'v') return;          // vertical scroll — stay out of the way
+  let next = pointerDrag.startOffset + dx;
+  if (next > 0) next = 0;
+  if (next < -130) next = -130;                 // small rubber band past full reveal
+  pointerDrag.card.style.transform = `translateX(${next}px)`;
+});
+function endPointerDrag(e, cancelled) {
+  if (!pointerDrag || pointerDrag.id !== e.pointerId) return;
+  const card = pointerDrag.card;
+  const wrap = pointerDrag.wrap;
+  const dir  = pointerDrag.dir;
+  const totalDx = e.clientX - pointerDrag.startX;
+  const totalDy = e.clientY - pointerDrag.startY;
+  card.style.transition = '';
+  if (cancelled || dir === 'v' || (Math.abs(totalDx) < 5 && Math.abs(totalDy) < 5)) {
+    // Tap or vertical scroll — restore state, let click handler decide
+    if (pointerDrag.startOffset === 0) card.style.transform = '';
+    else card.style.transform = `translateX(${pointerDrag.startOffset}px)`;
+  } else {
+    const m = (card.style.transform || '').match(/translateX\((-?\d+(?:\.\d+)?)/);
+    const final = m ? parseFloat(m[1]) : 0;
+    if (final < -50) openSwipe(wrap); else closeSwipe(wrap);
+    suppressClickUntil = Date.now() + 350;
+  }
+  pointerDrag = null;
+}
+historyListEl.addEventListener('pointerup',     e => endPointerDrag(e, false));
+historyListEl.addEventListener('pointercancel', e => endPointerDrag(e, true));
 updateUnitLabels();
 renderProfilePills();
 loadSessions().then(s => { $('sessionCount').textContent = s.length; });
