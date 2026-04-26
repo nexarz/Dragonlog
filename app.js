@@ -107,6 +107,7 @@ async function startSession() {
   }
   Object.assign(state, createState(), { running: true, startTime: Date.now() });
   physics.reset();
+  sparkDirty = true;
   gps.start();
   wakeLock = await acquireWakeLock();
   toggleControls('running');
@@ -276,6 +277,25 @@ function showWorkoutAlert(type) {
   alertHideTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
+// ---------- DOM delta helpers ----------
+// Touching the DOM is the slowest thing the render loop does. Cache last-written
+// values so we only update nodes whose content actually changed.
+const domCache = {};
+function setText(id, value) {
+  const v = String(value);
+  if (domCache[id] !== v) {
+    document.getElementById(id).textContent = v;
+    domCache[id] = v;
+  }
+}
+function setHTML(id, value) {
+  if (domCache[id] !== value) {
+    document.getElementById(id).innerHTML = value;
+    domCache[id] = value;
+  }
+}
+let sparkDirty = true;   // re-render sparkline only when spmHistory mutates
+
 // ---------- Render loop ----------
 function render() {
   if (state.running) updateFusion();
@@ -286,53 +306,51 @@ function render() {
     const effectDps  = state.sessionDps != null ? state.sessionDps : prof.dps;
     playerStatus = player.tick(state, effectDps);
     if (playerStatus?.alert) showWorkoutAlert(playerStatus.alert);
-    // Auto-stop session when workout finishes (delay so the voice cue completes)
     if (playerStatus?.type === 'complete') {
       setTimeout(() => { if (state.running) stopSession(); }, 3500);
     }
   }
 
   const ms = elapsedMs();
-  $('timer').innerHTML = state.running
+  setHTML('timer', state.running
     ? fmtTime(ms, true).replace(/\.(\d)$/, '<span class="ms">.$1</span>')
-    : '00:00<span class="ms">.0</span>';
+    : '00:00<span class="ms">.0</span>');
 
   const spm = computeSpm(state.strokes);
-  $('spm').textContent = spm;
-  $('strokeCount').textContent = `${state.strokes.length} strokes`;
+  setText('spm', spm);
+  setText('strokeCount', `${state.strokes.length} strokes`);
 
   const speedMS = computeSpeedMS(state.positions);
-  $('pace').textContent = fmtPace500(speedMS);
-  $('distance').textContent = fmtDist(state.fusedDistance, prefs.units);
+  setText('pace', fmtPace500(speedMS));
+  setText('distance', fmtDist(state.fusedDistance, prefs.units));
 
   const avgMS = ms > 0 ? state.fusedDistance / (ms / 1000) : 0;
-  $('avgPace').textContent = fmtPace500(avgMS);
+  setText('avgPace', fmtPace500(avgMS));
 
   const prof = getActiveProfile(prefs);
   const liveDps = state.sessionDps != null ? state.sessionDps
                  : (prof && prof.calibrated ? prof.dps : null);
-  $('dpsLive').textContent = liveDps != null ? fmtDps(liveDps, prefs.units) : '—';
-  $('dpsSource').textContent = state.running
+  setText('dpsLive', liveDps != null ? fmtDps(liveDps, prefs.units) : '—');
+  setText('dpsSource', state.running
     ? `src: ${state.distanceSource.toLowerCase()}`
-    : (prof ? `profile: ${prof.name.toLowerCase()}` : 'no profile');
+    : (prof ? `profile: ${prof.name.toLowerCase()}` : 'no profile'));
 
-  $('liveShake').textContent = liveShakeReading.toFixed(2);
+  setText('liveShake', liveShakeReading.toFixed(2));
 
-  const liveCheck  = physics.liveCheck;
-  const liveBounce = physics.liveBounce;
-  $('checkLive').textContent  = physics.totalCycles > 0 ? liveCheck.toFixed(2)  : '—';
-  $('bounceLive').textContent = physics.totalCycles > 0 ? liveBounce.toFixed(2) : '—';
+  setText('checkLive',  physics.totalCycles > 0 ? physics.liveCheck.toFixed(2)  : '—');
+  setText('bounceLive', physics.totalCycles > 0 ? physics.liveBounce.toFixed(2) : '—');
 
-  // SPM history sample
+  // SPM history sample (1 Hz) — only mark spark dirty when a new point lands
   if (state.running && !state.paused) {
     const now = Date.now();
     const last = state.spmHistory[state.spmHistory.length - 1];
     if (!last || now - last.t > 1000) {
       state.spmHistory.push({ t: now, spm });
       if (state.spmHistory.length > 60) state.spmHistory.shift();
+      sparkDirty = true;
     }
   }
-  renderSpark();
+  if (sparkDirty) { renderSpark(); sparkDirty = false; }
   renderWorkoutPlayer();
 }
 function renderSpark() {
@@ -395,9 +413,6 @@ function renderHistory() {
     </div>`;
   }).join('');
 
-  list.querySelectorAll('.session-card').forEach(card => {
-    card.addEventListener('click', () => openSessionDetail(parseInt(card.dataset.id, 10)));
-  });
 }
 
 function openSessionDetail(id) {
@@ -507,9 +522,6 @@ function renderProfileList() {
       ${delBtn}
     </div>`;
   }).join('');
-  list.querySelectorAll('button[data-action]').forEach(btn => {
-    btn.addEventListener('click', () => onProfileAction(btn.dataset.action, btn.dataset.id));
-  });
 }
 function onProfileAction(action, id) {
   if (action === 'calib') {
@@ -588,6 +600,13 @@ async function registerServiceWorker() {
 
 // ---------- Wiring: settings controls ----------
 function initSettingsControls() {
+  // Single delegated listener for profile-row buttons
+  $('profileList').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    onProfileAction(btn.dataset.action, btn.dataset.id);
+  });
+
   $('sensitivity').value = prefs.sensitivity;
   $('sensVal').textContent = prefs.sensitivity.toFixed(1);
   $('minInterval').value = prefs.minInterval;
@@ -777,10 +796,6 @@ function renderWorkoutList() {
       </div>
     </div>`;
   }).join('');
-
-  container.querySelectorAll('button[data-action]').forEach(btn => {
-    btn.addEventListener('click', () => onWorkoutAction(btn.dataset.action, btn.dataset.id));
-  });
 }
 
 function onWorkoutAction(action, idStr) {
@@ -851,35 +866,51 @@ function renderBuilderIntervals() {
       <button class="btn btn-ghost btn-compact danger-btn iv-del" data-field="del">✕</button>
     </div>`;
   }).join('');
-
-  // Event delegation on the list
-  list.querySelectorAll('.interval-row').forEach(row => {
-    const idx = parseInt(row.dataset.idx, 10);
-    row.addEventListener('change', e => {
-      const field = e.target.dataset.field;
-      if (!field) return;
-      const iv = currentEditWorkout.intervals[idx];
-      if (field === 'type') {
-        iv.type = e.target.value;
-        renderBuilderIntervals();
-      } else if (field === 'ps') {
-        iv.ps = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 6));
-      } else if (field === 'min') {
-        const sec = iv.durationSec % 60;
-        iv.durationSec = Math.max(0, (parseInt(e.target.value, 10) || 0)) * 60 + sec;
-      } else if (field === 'sec') {
-        const min = Math.floor(iv.durationSec / 60);
-        iv.durationSec = min * 60 + Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
-      }
-    });
-    row.querySelector('[data-field="del"]').addEventListener('click', () => {
-      currentEditWorkout.intervals.splice(idx, 1);
-      renderBuilderIntervals();
-    });
-  });
 }
 
 function initPlanControls() {
+  // Single delegated listener for workout cards (no per-render attachment churn)
+  $('workoutListItems').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    onWorkoutAction(btn.dataset.action, btn.dataset.id);
+  });
+
+  // Delegated listeners for the interval builder rows
+  const ivList = $('builderIntervalList');
+  ivList.addEventListener('change', e => {
+    if (!currentEditWorkout) return;
+    const row = e.target.closest('.interval-row');
+    if (!row) return;
+    const idx = parseInt(row.dataset.idx, 10);
+    const field = e.target.dataset.field;
+    if (!field) return;
+    const iv = currentEditWorkout.intervals[idx];
+    if (!iv) return;
+    if (field === 'type') {
+      iv.type = e.target.value;
+      renderBuilderIntervals();
+    } else if (field === 'ps') {
+      iv.ps = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 6));
+    } else if (field === 'min') {
+      const sec = iv.durationSec % 60;
+      iv.durationSec = Math.max(0, parseInt(e.target.value, 10) || 0) * 60 + sec;
+    } else if (field === 'sec') {
+      const min = Math.floor(iv.durationSec / 60);
+      iv.durationSec = min * 60 + Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
+    }
+  });
+  ivList.addEventListener('click', e => {
+    if (!currentEditWorkout) return;
+    const del = e.target.closest('[data-field="del"]');
+    if (!del) return;
+    const row = del.closest('.interval-row');
+    if (!row) return;
+    const idx = parseInt(row.dataset.idx, 10);
+    currentEditWorkout.intervals.splice(idx, 1);
+    renderBuilderIntervals();
+  });
+
   $('newWorkoutBtn').addEventListener('click', () => openBuilder(null));
   $('addIntervalBtn').addEventListener('click', () => {
     if (!currentEditWorkout) return;
@@ -981,6 +1012,12 @@ initInfoModal();
 $('backToHistoryBtn').addEventListener('click', () => {
   $('historyDetailView').style.display = 'none';
   $('historyList').style.display = '';
+});
+// Delegated click handler for session cards
+$('historyList').addEventListener('click', e => {
+  const card = e.target.closest('.session-card[data-id]');
+  if (!card) return;
+  openSessionDetail(parseInt(card.dataset.id, 10));
 });
 updateUnitLabels();
 renderProfilePills();
