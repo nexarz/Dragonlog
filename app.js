@@ -302,12 +302,11 @@ function render() {
   $('strokeCount').textContent = `${state.strokes.length} strokes`;
 
   const speedMS = computeSpeedMS(state.positions);
-  $('speed').textContent = fmtSpeed(speedMS, prefs.units);
   $('pace').textContent = fmtPace500(speedMS);
   $('distance').textContent = fmtDist(state.fusedDistance, prefs.units);
 
   const avgMS = ms > 0 ? state.fusedDistance / (ms / 1000) : 0;
-  $('avgSpeed').textContent = fmtSpeed(avgMS, prefs.units);
+  $('avgPace').textContent = fmtPace500(avgMS);
 
   const prof = getActiveProfile(prefs);
   const liveDps = state.sessionDps != null ? state.sessionDps
@@ -650,7 +649,6 @@ function initSettingsControls() {
   });
 }
 function updateUnitLabels() {
-  $('speedUnit').textContent = prefs.units === 'metric' ? 'KM/H' : 'MPH';
   $('distUnit').textContent  = prefs.units === 'metric' ? 'M' : 'YD';
   $('dpsUnit').textContent   = prefs.units === 'metric' ? 'M' : 'YD';
 }
@@ -903,6 +901,70 @@ function initPlanControls() {
   });
 }
 
+// ---------- Info modal ----------
+const METRIC_INFO = {
+  check: {
+    title: 'STERN CHECK',
+    body: `
+      <div class="info-section">
+        <div class="info-heading">What it measures</div>
+        <p>Backward kick on the boat between strokes. Lower means smoother glide; higher means the crew is pulling the hull back before the next catch.</p>
+      </div>
+      <div class="info-section">
+        <div class="info-heading">Why it happens</div>
+        <p>Rushing the recovery, throwing weight forward, or driving before the blade is fully buried.</p>
+      </div>
+      <div class="info-section">
+        <div class="info-heading">How to improve</div>
+        <ul>
+          <li><strong>Smooth recovery</strong> — float forward, don't snap.</li>
+          <li><strong>Bury before pull</strong> — fully anchor the blade.</li>
+          <li><strong>Top arm high</strong> — spear forward and down.</li>
+          <li><strong>Hit the catch together</strong> as a crew.</li>
+        </ul>
+      </div>`,
+  },
+  bounce: {
+    title: 'VERTICAL BOUNCE',
+    body: `
+      <div class="info-section">
+        <div class="info-heading">What it measures</div>
+        <p>How much the hull moves up and down. Vertical motion is wasted energy that should be driving the boat forward.</p>
+      </div>
+      <div class="info-section">
+        <div class="info-heading">Why it happens</div>
+        <p>Bobbing — dropping head and shoulders into the catch — or digging at the back of the stroke and lifting water.</p>
+      </div>
+      <div class="info-section">
+        <div class="info-heading">How to improve</div>
+        <ul>
+          <li><strong>Heads level</strong> — reach from core rotation, not bowing.</li>
+          <li><strong>Drive horizontal</strong> — push through legs, not down.</li>
+          <li><strong>Clean exit at the hip</strong> — slice the blade out.</li>
+          <li><strong>Stay tall</strong> through the back half of the stroke.</li>
+        </ul>
+      </div>`,
+  },
+};
+
+function initInfoModal() {
+  const modal = $('infoModal');
+  document.querySelectorAll('.info-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const info = METRIC_INFO[btn.dataset.info];
+      if (!info) return;
+      $('infoTitle').textContent = info.title;
+      $('infoContent').innerHTML = info.body;
+      modal.classList.add('active');
+    });
+  });
+  $('infoCloseBtn').addEventListener('click', () => modal.classList.remove('active'));
+  modal.addEventListener('click', e => {
+    if (e.target === modal) modal.classList.remove('active');
+  });
+}
+
 // ---------- Re-acquire wake lock when tab becomes visible ----------
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && state.running && !wakeLock) {
@@ -915,6 +977,7 @@ initTabs();
 initSettingsControls();
 initSessionControls();
 initPlanControls();
+initInfoModal();
 $('backToHistoryBtn').addEventListener('click', () => {
   $('historyDetailView').style.display = 'none';
   $('historyList').style.display = '';

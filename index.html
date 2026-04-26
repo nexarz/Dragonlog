@@ -57,21 +57,21 @@
         <div class="stat-value" id="spm">0</div>
         <div class="stat-sub" id="strokeCount">0 strokes</div>
       </div>
-      <div class="stat">
-        <div class="stat-label"><span>Speed</span><span class="unit" id="speedUnit">KM/H</span></div>
-        <div class="stat-value" id="speed">0.0</div>
+      <div class="timer-bar timer-bar-inline">
+        <div class="timer" id="timer">00:00<span class="ms">.0</span></div>
+        <div class="timer-label">Elapsed</div>
       </div>
       <div class="stat">
         <div class="stat-label"><span>Pace</span><span class="unit">/500m</span></div>
         <div class="stat-value" id="pace">—</div>
       </div>
       <div class="stat">
-        <div class="stat-label"><span>Distance</span><span class="unit" id="distUnit">M</span></div>
-        <div class="stat-value" id="distance">0</div>
+        <div class="stat-label"><span>Avg Pace</span><span class="unit">/500m</span></div>
+        <div class="stat-value" id="avgPace">—</div>
       </div>
       <div class="stat">
-        <div class="stat-label"><span>Avg Speed</span><span class="unit">KM/H</span></div>
-        <div class="stat-value" id="avgSpeed">0.0</div>
+        <div class="stat-label"><span>Distance</span><span class="unit" id="distUnit">M</span></div>
+        <div class="stat-value" id="distance">0</div>
       </div>
       <div class="stat">
         <div class="stat-label"><span>Dist / Stroke</span><span class="unit" id="dpsUnit">M</span></div>
@@ -79,12 +79,12 @@
         <div class="stat-sub" id="dpsSource">source: —</div>
       </div>
       <div class="stat">
-        <div class="stat-label"><span>Stern Check</span><span class="unit">M/S²</span></div>
+        <div class="stat-label"><span>Stern Check <button class="info-btn" data-info="check" aria-label="About Stern Check">i</button></span><span class="unit">M/S²</span></div>
         <div class="stat-value" id="checkLive">—</div>
         <div class="stat-sub">lower is better</div>
       </div>
       <div class="stat">
-        <div class="stat-label"><span>Bounce</span><span class="unit">M/S²</span></div>
+        <div class="stat-label"><span>Bounce <button class="info-btn" data-info="bounce" aria-label="About Bounce">i</button></span><span class="unit">M/S²</span></div>
         <div class="stat-value" id="bounceLive">—</div>
         <div class="stat-sub">peak-to-peak vertical</div>
       </div>
@@ -93,11 +93,6 @@
     <div class="profile-bar" id="profileBar">
       <div class="profile-bar-label">PROFILE</div>
       <div class="profile-pills" id="profilePills"></div>
-    </div>
-
-    <div class="timer-bar">
-      <div class="timer" id="timer">00:00<span class="ms">.0</span></div>
-      <div class="timer-label">Elapsed</div>
     </div>
 
     <div class="sparkline">
@@ -312,6 +307,17 @@
         <button class="btn btn-ghost" id="calibRedo">REDO</button>
         <button class="btn btn-primary" id="calibSave">SAVE</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- INFO MODAL -->
+<div class="modal-overlay" id="infoModal">
+  <div class="modal info-modal">
+    <h3 id="infoTitle">METRIC</h3>
+    <div id="infoContent" class="info-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="infoCloseBtn">GOT IT</button>
     </div>
   </div>
 </div>
