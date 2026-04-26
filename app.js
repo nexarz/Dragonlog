@@ -21,6 +21,7 @@ import {
   newWorkout, newInterval, intervalDisplay, fmtDur, totalWorkoutSec,
 } from './modules/workout.js';
 import { createPlayer } from './modules/player.js';
+import { createPhysicsTracker } from './modules/physics.js';
 
 const APP_VERSION = '1.1.0';
 const $ = id => document.getElementById(id);
@@ -31,8 +32,9 @@ const prefs = loadPrefs();
 let wakeLock = null;
 let liveShakeReading = 0;
 
-// ---------- Workout Player ----------
+// ---------- Workout Player + Physics ----------
 const player = createPlayer();
+const physics = createPhysicsTracker();
 let playerStatus  = null;
 let alertHideTimer = null;
 let currentEditWorkout = null;  // workout open in builder
@@ -44,7 +46,11 @@ const strokeDetector = createStrokeDetector({
   onStroke: (t) => {
     if (!state.running || state.paused) return;
     state.strokes.push(t);
+    physics.onStroke();
     if (navigator.vibrate) navigator.vibrate(12);
+  },
+  onMotion: (ev) => {
+    if (state.running && !state.paused) physics.addSample(ev);
   },
   onLiveReading: (delta) => {
     liveShakeReading = delta;
@@ -100,6 +106,7 @@ async function startSession() {
     await ensurePermissions();
   }
   Object.assign(state, createState(), { running: true, startTime: Date.now() });
+  physics.reset();
   gps.start();
   wakeLock = await acquireWakeLock();
   toggleControls('running');
@@ -162,6 +169,8 @@ function buildSession() {
     avgSpm: durMs > 0 ? Math.round(state.strokes.length / (durMs / 60000)) : 0,
     avgSpeedMS: durMs > 0 ? state.fusedDistance / (durMs / 1000) : 0,
     avgDps: state.strokes.length > 0 ? state.fusedDistance / state.strokes.length : 0,
+    avgCheck:  physics.avgCheck,
+    avgBounce: physics.avgBounce,
     profileId: prof.id,
     profileName: prof.name,
     distMode: prefs.distMode,
@@ -310,6 +319,11 @@ function render() {
 
   $('liveShake').textContent = liveShakeReading.toFixed(2);
 
+  const liveCheck  = physics.liveCheck;
+  const liveBounce = physics.liveBounce;
+  $('checkLive').textContent  = physics.totalCycles > 0 ? liveCheck.toFixed(2)  : '—';
+  $('bounceLive').textContent = physics.totalCycles > 0 ? liveBounce.toFixed(2) : '—';
+
   // SPM history sample
   if (state.running && !state.paused) {
     const now = Date.now();
@@ -434,6 +448,14 @@ function openSessionDetail(id) {
       <div class="setup-row">
         <div class="setup-label">Distance per Stroke</div>
         <div class="setup-val">${avgDps} ${dpsUnit}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Avg Stern Check</div>
+        <div class="setup-val">${session.avgCheck > 0 ? session.avgCheck.toFixed(2) + ' m/s²' : '—'}</div>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Avg Bounce</div>
+        <div class="setup-val">${session.avgBounce > 0 ? session.avgBounce.toFixed(2) + ' m/s²' : '—'}</div>
       </div>
       <div class="setup-row">
         <div class="setup-label">Distance Source</div>

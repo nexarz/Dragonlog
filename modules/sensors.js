@@ -30,6 +30,7 @@ export function createStrokeDetector({
   getMinInterval,    // () => ms
   onStroke,          // (timestamp) => void
   onLiveReading,     // (delta) => void  (for settings/debug)
+  onMotion,          // (ev) => void     (raw event for downstream processing)
 }) {
   let smoothedMag = 0;
   let peakCandidate = 0;
@@ -37,6 +38,7 @@ export function createStrokeDetector({
   let attached = false;
 
   function handleMotion(ev) {
+    onMotion?.(ev);
     const a = ev.accelerationIncludingGravity || ev.acceleration;
     if (!a) return;
     const mag = Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2);
