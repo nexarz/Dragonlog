@@ -608,7 +608,7 @@ function initSettingsControls() {
   });
 
   $('sensitivity').value = prefs.sensitivity;
-  $('sensVal').textContent = prefs.sensitivity.toFixed(1);
+  $('sensVal').textContent = prefs.sensitivity.toFixed(2);
   $('minInterval').value = prefs.minInterval;
   $('units').value = prefs.units;
   $('distMode').value = prefs.distMode;
@@ -617,7 +617,7 @@ function initSettingsControls() {
 
   $('sensitivity').addEventListener('input', e => {
     prefs.sensitivity = parseFloat(e.target.value);
-    $('sensVal').textContent = prefs.sensitivity.toFixed(1);
+    $('sensVal').textContent = prefs.sensitivity.toFixed(2);
     savePrefs(prefs);
   });
   $('minInterval').addEventListener('change', e => {

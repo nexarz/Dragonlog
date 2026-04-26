@@ -15,7 +15,7 @@ export const DEFAULT_PROFILES = [
 export const DEFAULT_PREFS = {
   schemaVersion: SCHEMA_VERSION,
   units: 'metric',
-  sensitivity: 1.8,
+  sensitivity: 0.5,
   minInterval: 300,
   distMode: 'fused',
   autoRecal: 1,
