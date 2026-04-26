@@ -825,7 +825,7 @@ function initSettingsControls() {
     savePrefs(prefs);
   });
   $('minInterval').addEventListener('change', e => {
-    prefs.minInterval = parseInt(e.target.value, 10) || 300;
+    prefs.minInterval = parseInt(e.target.value, 10) || 700;
     savePrefs(prefs);
   });
   $('units').addEventListener('change', e => {
