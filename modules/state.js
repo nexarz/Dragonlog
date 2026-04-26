@@ -41,6 +41,8 @@ export function createState() {
     lastSplitDist: 0,
     lastSplitStrokes: 0,
     spmHistory: [],
+    timeline: [],         // 5s snapshots for the History detail scrubber
+    lastTimelineAt: 0,
     lastGpsAt: 0,
     gpsHealthy: false,
     distanceSource: '—',

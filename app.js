@@ -176,6 +176,7 @@ function buildSession() {
     profileName: prof.name,
     distMode: prefs.distMode,
     splits: state.splits,
+    timeline: state.timeline,
     track: state.positions.map(p => ({ t: p.t, lat: p.lat, lon: p.lon })),
   };
 }
@@ -340,6 +341,19 @@ function render() {
   setText('checkLive',  physics.totalCycles > 0 ? physics.liveCheck.toFixed(2)  : '—');
   setText('bounceLive', physics.totalCycles > 0 ? physics.liveBounce.toFixed(2) : '—');
 
+  // 5-second timeline snapshot for the history scrubber
+  if (state.running && !state.paused && Date.now() - state.lastTimelineAt >= 5000) {
+    state.timeline.push({
+      t: ms,
+      spm,
+      speed: speedMS,
+      dps: liveDps || 0,
+      check: physics.liveCheck || 0,
+      bounce: physics.liveBounce || 0,
+    });
+    state.lastTimelineAt = Date.now();
+  }
+
   // SPM history sample (1 Hz) — only mark spark dirty when a new point lands
   if (state.running && !state.paused) {
     const now = Date.now();
@@ -415,6 +429,108 @@ async function renderHistory() {
 
 }
 
+// ---------- Timeline scrubber (history detail) ----------
+function renderTouchTimeline(timeline) {
+  if (!timeline || timeline.length < 2) return '';
+  const last = timeline[timeline.length - 1];
+  const W = 300, H = 40;
+
+  function svgFor(values, label, color) {
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < values.length; i++) {
+      if (values[i] < min) min = values[i];
+      if (values[i] > max) max = values[i];
+    }
+    const range = max - min || 1;
+    const xStep = W / Math.max(values.length - 1, 1);
+    let d = '';
+    for (let i = 0; i < values.length; i++) {
+      const x = i * xStep;
+      const y = H - ((values[i] - min) / range) * (H - 8) - 4;
+      d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+    }
+    return `<svg class="tl-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <text x="6" y="13" fill="${color}" opacity=".55"
+            font-family="JetBrains Mono" font-weight="700" font-size="9" letter-spacing="2">${label}</text>
+      <path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>`;
+  }
+
+  const spms    = timeline.map(p => p.spm   || 0);
+  const speeds  = timeline.map(p => p.speed || 0);
+  const dpses   = timeline.map(p => p.dps   || 0);
+
+  const C_SPM   = '#ff3c28';
+  const C_SPEED = '#2ecc71';
+  const C_DPS   = '#ffb800';
+
+  return `
+    <h3 class="history-detail-subheading">SESSION TIMELINE</h3>
+    <div class="timeline-container">
+      <div class="tl-readout">
+        <div class="tl-time" id="tlTime">${fmtTime(last.t, false)}</div>
+        <div class="tl-stats">
+          <span id="tlSpm"  style="color:${C_SPM}">${last.spm} SPM</span>
+          <span id="tlPace" style="color:${C_SPEED}">${fmtPace500(last.speed || 0)}</span>
+          <span id="tlDps"  style="color:${C_DPS}">${(last.dps || 0).toFixed(2)}</span>
+        </div>
+      </div>
+      <div class="tl-charts">
+        ${svgFor(spms,   'SPM',   C_SPM)}
+        ${svgFor(speeds, 'SPEED', C_SPEED)}
+        ${svgFor(dpses,  'DPS',   C_DPS)}
+        <div class="tl-crosshair"      id="tlCrosshair"></div>
+        <div class="tl-touch-surface"  id="tlTouchSurface"></div>
+      </div>
+    </div>`;
+}
+
+function initTimelineScrubber(timeline) {
+  const surface   = $('tlTouchSurface');
+  const crosshair = $('tlCrosshair');
+  const tEl   = $('tlTime');
+  const spmEl = $('tlSpm');
+  const pcEl  = $('tlPace');
+  const dpsEl = $('tlDps');
+  if (!surface || !crosshair) return;
+
+  function update(clientX) {
+    const rect = surface.getBoundingClientRect();
+    let x = clientX - rect.left;
+    if (x < 0) x = 0;
+    if (x > rect.width) x = rect.width;
+    crosshair.style.transform = `translateX(${x}px)`;
+    crosshair.style.opacity = '1';
+    const pct = rect.width > 0 ? x / rect.width : 0;
+    const idx = Math.min(timeline.length - 1, Math.max(0, Math.round(pct * (timeline.length - 1))));
+    const p = timeline[idx];
+    tEl.textContent   = fmtTime(p.t, false);
+    spmEl.textContent = `${p.spm} SPM`;
+    pcEl.textContent  = fmtPace500(p.speed || 0);
+    dpsEl.textContent = (p.dps || 0).toFixed(2);
+  }
+
+  function fadeOut() { crosshair.style.opacity = '0'; }
+
+  let dragging = false;
+
+  surface.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches[0]) update(e.touches[0].clientX);
+  }, { passive: false });
+  surface.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches[0]) update(e.touches[0].clientX);
+  }, { passive: false });
+  surface.addEventListener('touchend',    fadeOut);
+  surface.addEventListener('touchcancel', fadeOut);
+
+  surface.addEventListener('mousedown', e => { dragging = true;  update(e.clientX); });
+  surface.addEventListener('mousemove', e => { if (dragging) update(e.clientX); });
+  surface.addEventListener('mouseup',    () => { dragging = false; fadeOut(); });
+  surface.addEventListener('mouseleave', () => { dragging = false; fadeOut(); });
+}
+
 async function openSessionDetail(id) {
   const sessions = await loadSessions();
   const session = sessions.find(s => s.id === id);
@@ -476,7 +592,12 @@ async function openSessionDetail(id) {
         <div class="setup-val">${escapeHtml(session.distMode || 'fused')}</div>
       </div>
     </div>
+    ${session.timeline && session.timeline.length > 2 ? renderTouchTimeline(session.timeline) : ''}
   `;
+
+  if (session.timeline && session.timeline.length > 2) {
+    initTimelineScrubber(session.timeline);
+  }
 
   $('historyList').style.display = 'none';
   $('historyDetailView').style.display = 'block';
