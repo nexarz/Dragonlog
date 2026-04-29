@@ -23,6 +23,7 @@ import {
 import { createPlayer } from './modules/player.js';
 import { createPhysicsTracker } from './modules/physics.js';
 import { encodeSession, decodeSession } from './modules/share.js';
+import { joinRoom } from './modules/live.js';
 
 const APP_VERSION = '1.1.0';
 const $ = id => document.getElementById(id);
@@ -40,6 +41,11 @@ let currentViewedSessionId = null;   // for share button
 let playerStatus  = null;
 let alertHideTimer = null;
 let currentEditWorkout = null;  // workout open in builder
+
+// ---------- Live / Pack mode ----------
+let liveSession  = null;
+let liveRole     = null;
+let liveBroadcastTick = 0;
 
 // ---------- Sensors ----------
 const strokeDetector = createStrokeDetector({
@@ -356,6 +362,19 @@ function render() {
       bounce: physics.liveBounce || 0,
     });
     state.lastTimelineAt = Date.now();
+  }
+
+  // Broadcast live stats to pack room every 2s (paddler only)
+  if (liveSession && liveRole === 'paddler' && state.running && !state.paused) {
+    const now = Date.now();
+    if (now - liveBroadcastTick >= 2000) {
+      liveBroadcastTick = now;
+      liveSession.updateStats({
+        spm,
+        pace: fmtPace500(speedMS),
+        check: physics.totalCycles > 0 ? physics.liveCheck.toFixed(2) : '—',
+      });
+    }
   }
 
   // SPM history sample (1 Hz) — only mark spark dirty when a new point lands
@@ -1202,6 +1221,76 @@ function initInfoModal() {
   });
 }
 
+// ---------- Live / Pack mode ----------
+function renderCoachGrid(paddlers) {
+  const grid = $('paddlerGrid');
+  const entries = Object.values(paddlers);
+  if (!entries.length) {
+    grid.innerHTML = '<p class="setup-note">Waiting for paddlers…</p>';
+    return;
+  }
+  grid.innerHTML = entries.map(p => `
+    <div class="paddler-card">
+      <div class="p-name">${escapeHtml(p.name || '?')}</div>
+      <div class="p-main">${p.spm ?? '—'} <small>SPM</small></div>
+      <div class="p-sub">${escapeHtml(String(p.pace ?? '—'))} &nbsp;|&nbsp; Check: ${escapeHtml(String(p.check ?? '—'))}</div>
+    </div>
+  `).join('');
+}
+
+function showLiveConnected(roomId, role) {
+  $('liveSetup').style.display = 'none';
+  $('liveConnected').style.display = 'block';
+  $('activeRoomName').textContent = roomId.toUpperCase();
+  $('activeRoleName').textContent = role === 'coach' ? 'Coach' : 'Paddler';
+  $('coachPanel').style.display = role === 'coach' ? 'block' : 'none';
+}
+
+function showLiveDisconnected() {
+  $('liveSetup').style.display = 'block';
+  $('liveConnected').style.display = 'none';
+}
+
+function initLiveControls() {
+  $('joinLiveBtn').addEventListener('click', async () => {
+    const roomId = $('liveRoomId').value.trim().toUpperCase();
+    const role   = $('liveRole').value;
+    const name   = $('liveName').value.trim() || getActiveProfile(prefs).name;
+    if (!roomId) { alert('Enter a Room ID'); return; }
+
+    $('joinLiveBtn').disabled = true;
+    $('joinLiveBtn').textContent = 'CONNECTING…';
+    try {
+      liveSession = await joinRoom(roomId, name, role, (cmd) => {
+        if (cmd.type === 'START' && !state.running) startSession();
+        if (cmd.type === 'STOP'  &&  state.running) stopSession();
+      });
+      liveRole = role;
+      showLiveConnected(roomId, role);
+      if (role === 'coach') liveSession.watchPack(renderCoachGrid);
+    } catch (e) {
+      console.error('Live join failed:', e);
+      alert('Could not connect. Check your Room ID and try again.');
+    } finally {
+      $('joinLiveBtn').disabled = false;
+      $('joinLiveBtn').textContent = 'JOIN ROOM';
+    }
+  });
+
+  $('leaveLiveBtn').addEventListener('click', () => {
+    if (liveSession) { liveSession.leave(); liveSession = null; liveRole = null; }
+    showLiveDisconnected();
+  });
+
+  $('coachStartBtn').addEventListener('click', () => {
+    if (liveSession) liveSession.sendCommand('START');
+  });
+
+  $('coachStopBtn').addEventListener('click', () => {
+    if (liveSession) liveSession.sendCommand('STOP');
+  });
+}
+
 // ---------- Re-acquire wake lock when tab becomes visible ----------
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && state.running && !wakeLock) {
@@ -1215,6 +1304,7 @@ initSettingsControls();
 initSessionControls();
 initPlanControls();
 initInfoModal();
+initLiveControls();
 $('backToHistoryBtn').addEventListener('click', () => {
   // Clean the share param so the user isn't trapped on the shared session
   if (location.search.includes('s=')) {

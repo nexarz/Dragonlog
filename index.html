@@ -33,6 +33,7 @@
 <nav class="tabs">
   <button class="active" data-tab="train">Train</button>
   <button data-tab="plan">Plan</button>
+  <button data-tab="live">Live</button>
   <button data-tab="history">History</button>
   <button data-tab="settings">Settings</button>
 </nav>
@@ -120,6 +121,62 @@
       <div class="builder-footer">
         <button class="btn btn-ghost" id="builderCancelBtn">CANCEL</button>
         <button class="btn btn-primary" id="builderSaveBtn">SAVE WORKOUT</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE VIEW -->
+  <section class="view" id="view-live">
+    <div class="setup" id="liveSetup">
+      <h3>Pack Mode</h3>
+      <p class="setup-note">Join a shared room to broadcast your stats to a coach in real time, or monitor the whole pack as coach.</p>
+      <div class="setup-row">
+        <div class="setup-label">Room ID</div>
+        <input type="text" id="liveRoomId" placeholder="e.g. VANC" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Role</div>
+        <select id="liveRole">
+          <option value="paddler">Paddler</option>
+          <option value="coach">Coach</option>
+        </select>
+      </div>
+      <div class="setup-row">
+        <div class="setup-label">Name</div>
+        <input type="text" id="liveName" placeholder="Your name" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="joinLiveBtn">JOIN ROOM</button>
+    </div>
+
+    <div id="liveConnected" style="display:none">
+      <div class="setup">
+        <h3>Connected</h3>
+        <div class="setup-row">
+          <div class="setup-label">Room</div>
+          <div class="setup-val" id="activeRoomName">—</div>
+        </div>
+        <div class="setup-row">
+          <div class="setup-label">Role</div>
+          <div class="setup-val" id="activeRoleName">—</div>
+        </div>
+        <button class="btn btn-ghost btn-compact" id="leaveLiveBtn">LEAVE ROOM</button>
+      </div>
+
+      <!-- Coach-only pack monitor -->
+      <div id="coachPanel" style="display:none">
+        <div class="setup">
+          <div class="setup-row">
+            <div class="setup-label">Send to pack</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-compact" id="coachStartBtn">START</button>
+              <button class="btn btn-ghost btn-compact" id="coachStopBtn">STOP</button>
+            </div>
+          </div>
+        </div>
+        <div class="setup">
+          <h3>Pack</h3>
+          <div id="paddlerGrid" class="paddler-grid"></div>
+        </div>
       </div>
     </div>
   </section>
