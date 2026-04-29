@@ -2,7 +2,7 @@
 // Strategy: cache shell on install; on fetch, try network first for HTML (so updates are fast),
 // cache-first for other assets. Works offline once installed.
 
-const CACHE = 'dragonlog-v10';
+const CACHE = 'dragonlog-v11';
 
 const VOICE_CLIPS = (() => {
   const list = [

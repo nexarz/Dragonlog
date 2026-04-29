@@ -111,7 +111,7 @@ if (needsMotionPermission()) {
 $('requestPerms').addEventListener('click', ensurePermissions);
 
 // ---------- Session control ----------
-async function startSession() {
+async function startSession({ remote = false } = {}) {
   audio.unlockAudio();
   if (needsMotionPermission() && !window.__permsGranted) {
     await ensurePermissions();
@@ -123,6 +123,10 @@ async function startSession() {
   wakeLock = await acquireWakeLock();
   toggleControls('running');
   if (player.loaded) player.start();
+  // Coach's local tap broadcasts to the pack
+  if (!remote && liveSession && liveRole === 'coach') {
+    liveSession.sendCommand('START');
+  }
 }
 function pauseSession() {
   state.paused = true;
@@ -139,7 +143,7 @@ function resumeSession() {
   player.resume();
   toggleControls('running');
 }
-async function stopSession() {
+async function stopSession({ remote = false } = {}) {
   if (!state.running) return;
   const final = buildSession();
   state.running = false;
@@ -149,6 +153,9 @@ async function stopSession() {
   if (wakeLock) { try { wakeLock.release(); } catch {} wakeLock = null; }
   toggleControls('idle');
   renderWorkoutPlayer();
+  if (!remote && liveSession && liveRole === 'coach') {
+    liveSession.sendCommand('STOP');
+  }
   if (final.durationSec > 5) {
     try {
       await addSession(final);
@@ -1245,11 +1252,16 @@ function showLiveConnected(roomId, role) {
   $('activeRoomName').textContent = roomId.toUpperCase();
   $('activeRoleName').textContent = role === 'coach' ? 'Coach' : 'Paddler';
   $('coachPanel').style.display = role === 'coach' ? 'block' : 'none';
+  const chip = $('packChip');
+  chip.textContent = `${role === 'coach' ? '◆' : '●'} ${roomId.toUpperCase()}`;
+  chip.classList.toggle('coach', role === 'coach');
+  chip.style.display = '';
 }
 
 function showLiveDisconnected() {
   $('liveSetup').style.display = 'block';
   $('liveConnected').style.display = 'none';
+  $('packChip').style.display = 'none';
 }
 
 function initLiveControls() {
@@ -1287,8 +1299,8 @@ function initLiveControls() {
     $('joinLiveBtn').textContent = 'CONNECTING…';
     try {
       liveSession = await joinRoom(roomId, name, role, (cmd) => {
-        if (cmd.type === 'START' && !state.running) startSession();
-        if (cmd.type === 'STOP'  &&  state.running) stopSession();
+        if (cmd.type === 'START' && !state.running) startSession({ remote: true });
+        if (cmd.type === 'STOP'  &&  state.running) stopSession({ remote: true });
       });
       liveRole = role;
       activeRoomId = roomId;

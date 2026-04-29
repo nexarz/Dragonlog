@@ -1014,3 +1014,22 @@ svg.spark { width: 100%; height: 80px; display: block; }
   margin-top: 4px;
   font-family: 'JetBrains Mono', monospace;
 }
+
+/* ── Pack chip in header ──────────────────────────────────────── */
+.pack-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .12em;
+  padding: 3px 7px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--accent-2);
+  border: 1px solid var(--border);
+  margin-right: 8px;
+  white-space: nowrap;
+}
+.pack-chip.coach {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
