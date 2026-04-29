@@ -1264,6 +1264,19 @@ function showLiveDisconnected() {
   $('packChip').style.display = 'none';
 }
 
+function showJoinPackModal(roomId, role) {
+  $('joinPackRoom').textContent = roomId;
+  $('joinPackRole').textContent = role.toUpperCase();
+  $('joinPackModal').classList.add('active');
+}
+function hideJoinPackModal() {
+  $('joinPackModal').classList.remove('active');
+  // Strip the params so a refresh doesn't re-prompt
+  if (location.search.includes('room=')) {
+    history.replaceState({}, document.title, location.pathname);
+  }
+}
+
 function initLiveControls() {
   // Pre-fill the name field with the active profile so it's visible & editable
   const activeName = getActiveProfile(prefs)?.name || '';
@@ -1276,6 +1289,8 @@ function initLiveControls() {
   if (linkRoom) {
     $('liveRoomId').value = linkRoom.toUpperCase();
     if (linkRole === 'paddler' || linkRole === 'coach') $('liveRole').value = linkRole;
+    // Surface a confirmation so the user knows what they're joining
+    showJoinPackModal(linkRoom.toUpperCase(), linkRole === 'coach' ? 'coach' : 'paddler');
   }
 
   $('joinLiveBtn').addEventListener('click', async () => {
@@ -1349,6 +1364,13 @@ function initLiveControls() {
 
   $('coachStopBtn').addEventListener('click', () => {
     if (liveSession) liveSession.sendCommand('STOP');
+  });
+
+  $('joinPackCancel').addEventListener('click', hideJoinPackModal);
+  $('joinPackConfirm').addEventListener('click', () => {
+    hideJoinPackModal();
+    document.querySelector('[data-tab="live"]')?.click();
+    $('joinLiveBtn').click();
   });
 }
 
