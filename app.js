@@ -23,7 +23,7 @@ import {
 import { createPlayer } from './modules/player.js';
 import { createPhysicsTracker } from './modules/physics.js';
 import { encodeSession, decodeSession } from './modules/share.js';
-import { joinRoom } from './modules/live.js';
+import { joinRoom, buildRoomToken } from './modules/live.js';
 
 const APP_VERSION = '1.1.0';
 const $ = id => document.getElementById(id);
@@ -45,6 +45,7 @@ let currentEditWorkout = null;  // workout open in builder
 // ---------- Live / Pack mode ----------
 let liveSession  = null;
 let liveRole     = null;
+let activeRoomId = null;
 let liveBroadcastTick = 0;
 
 // ---------- Sensors ----------
@@ -1252,11 +1253,35 @@ function showLiveDisconnected() {
 }
 
 function initLiveControls() {
+  // Pre-fill the name field with the active profile so it's visible & editable
+  const activeName = getActiveProfile(prefs)?.name || '';
+  $('liveName').value = activeName;
+
+  // Auto-fill from a join link: ?room=VANC-7K4M&role=paddler
+  const liveParams = new URLSearchParams(location.search);
+  const linkRoom = liveParams.get('room');
+  const linkRole = liveParams.get('role');
+  if (linkRoom) {
+    $('liveRoomId').value = linkRoom.toUpperCase();
+    if (linkRole === 'paddler' || linkRole === 'coach') $('liveRole').value = linkRole;
+  }
+
   $('joinLiveBtn').addEventListener('click', async () => {
-    const roomId = $('liveRoomId').value.trim().toUpperCase();
-    const role   = $('liveRole').value;
-    const name   = $('liveName').value.trim() || getActiveProfile(prefs).name;
-    if (!roomId) { alert('Enter a Room ID'); return; }
+    const inputId = $('liveRoomId').value.trim().toUpperCase();
+    const role    = $('liveRole').value;
+    const name    = $('liveName').value.trim() || getActiveProfile(prefs).name;
+    if (!inputId) { alert('Enter a Room ID'); return; }
+
+    // Coach generates a random suffix for short bare names; paddlers must
+    // type the full token exactly so they pick up the suffix.
+    let roomId = inputId;
+    if (role === 'coach' && !inputId.includes('-')) {
+      roomId = buildRoomToken(inputId);
+    }
+    if (roomId.length < 8) {
+      alert('Room ID is too short — must be at least 8 characters. Coaches can type a short name and the app will add a random code.');
+      return;
+    }
 
     $('joinLiveBtn').disabled = true;
     $('joinLiveBtn').textContent = 'CONNECTING…';
@@ -1266,11 +1291,12 @@ function initLiveControls() {
         if (cmd.type === 'STOP'  &&  state.running) stopSession();
       });
       liveRole = role;
+      activeRoomId = roomId;
       showLiveConnected(roomId, role);
       if (role === 'coach') liveSession.watchPack(renderCoachGrid);
     } catch (e) {
       console.error('Live join failed:', e);
-      alert('Could not connect. Check your Room ID and try again.');
+      alert(e.message || 'Could not connect. Check your Room ID and try again.');
     } finally {
       $('joinLiveBtn').disabled = false;
       $('joinLiveBtn').textContent = 'JOIN ROOM';
@@ -1279,7 +1305,30 @@ function initLiveControls() {
 
   $('leaveLiveBtn').addEventListener('click', () => {
     if (liveSession) { liveSession.leave(); liveSession = null; liveRole = null; }
+    activeRoomId = null;
     showLiveDisconnected();
+  });
+
+  $('copyRoomLinkBtn').addEventListener('click', async () => {
+    if (!activeRoomId) return;
+    const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(activeRoomId)}&role=paddler`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Join my Dragonlog pack', text: `Room: ${activeRoomId}`, url });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      const btn = $('copyRoomLinkBtn');
+      const orig = btn.textContent;
+      btn.textContent = 'COPIED!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    } catch {
+      alert(`Share this link:\n\n${url}`);
+    }
   });
 
   $('coachStartBtn').addEventListener('click', () => {

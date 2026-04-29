@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read":  "$roomId.length >= 8",
+        ".write": "$roomId.length >= 8",
+        "command": {
+          ".validate": "newData.hasChildren(['type', 'ts']) && newData.child('type').val().matches(/^(START|STOP)$/) && newData.child('ts').isNumber()"
+        },
+        "paddlers": {
+          "$paddlerId": {
+            ".validate": "!newData.exists() || (newData.hasChild('name') && newData.child('name').val().length < 64)"
+          }
+        }
+      }
+    }
+  }
+}
