@@ -1,6 +1,6 @@
 // DRAGON//LOG — dragonboat training tracker
 // Main entry point: wires modules together and owns the UI layer.
-
+import * as audio from './modules/audio.js';
 import {
   createState, loadPrefs, savePrefs, getActiveProfile,
   loadSessions, saveSessions, addSession, clearSessions,
@@ -80,6 +80,7 @@ const gps = createGpsWatcher({
 
 // ---------- Permissions bootstrap ----------
 async function ensurePermissions() {
+  audio.unlockAudio();
   if (needsMotionPermission()) {
     const res = await requestMotionPermission();
     if (res !== 'granted') {
@@ -104,6 +105,7 @@ $('requestPerms').addEventListener('click', ensurePermissions);
 
 // ---------- Session control ----------
 async function startSession() {
+  audio.unlockAudio();
   if (needsMotionPermission() && !window.__permsGranted) {
     await ensurePermissions();
   }
