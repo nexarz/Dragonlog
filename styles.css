@@ -71,13 +71,18 @@ header {
 
 /* ---------- TABS ---------- */
 nav.tabs {
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr) 44px;
   gap: 0;
   border-bottom: 1px solid var(--border);
   font-family: 'Bebas Neue', sans-serif;
   letter-spacing: .18em;
   font-size: 14px;
 }
+nav.tabs button.tab-icon {
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px 0;
+}
+nav.tabs button.tab-icon svg { display: block; }
 nav.tabs button {
   background: transparent; color: var(--ink-dim);
   border: none; padding: 14px 0; cursor: pointer;
