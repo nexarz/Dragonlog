@@ -125,7 +125,8 @@ async function startSession({ remote = false } = {}) {
   if (player.loaded) player.start();
   // Coach's local tap broadcasts to the pack
   if (!remote && liveSession && liveRole === 'coach') {
-    liveSession.sendCommand('START');
+    const data = player.loaded ? { workout: player.workout } : {};
+    liveSession.sendCommand('START', data);
   }
 }
 function pauseSession() {
@@ -1314,8 +1315,15 @@ function initLiveControls() {
     $('joinLiveBtn').textContent = 'CONNECTING…';
     try {
       liveSession = await joinRoom(roomId, name, role, (cmd) => {
-        if (cmd.type === 'START' && !state.running) startSession({ remote: true });
+        if (cmd.type === 'START' && !state.running) {
+          if (cmd.data?.workout) { player.load(cmd.data.workout); renderWorkoutPlayer(); }
+          startSession({ remote: true });
+        }
         if (cmd.type === 'STOP'  &&  state.running) stopSession({ remote: true });
+        if (cmd.type === 'LOAD_WORKOUT' && cmd.data?.workout) {
+          player.load(cmd.data.workout);
+          renderWorkoutPlayer();
+        }
       });
       liveRole = role;
       activeRoomId = roomId;
@@ -1359,11 +1367,19 @@ function initLiveControls() {
   });
 
   $('coachStartBtn').addEventListener('click', () => {
-    if (liveSession) liveSession.sendCommand('START');
+    if (!liveSession) return;
+    const data = player.loaded ? { workout: player.workout } : {};
+    liveSession.sendCommand('START', data);
   });
 
   $('coachStopBtn').addEventListener('click', () => {
     if (liveSession) liveSession.sendCommand('STOP');
+  });
+
+  $('coachSendWorkoutBtn').addEventListener('click', () => {
+    if (!liveSession) return;
+    if (!player.loaded) { alert('No workout loaded — go to the Plan tab and load one first.'); return; }
+    liveSession.sendCommand('LOAD_WORKOUT', { workout: player.workout });
   });
 
   $('joinPackCancel').addEventListener('click', hideJoinPackModal);
