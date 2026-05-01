@@ -5,14 +5,20 @@ const singletonPlayer = new Audio();
 singletonPlayer.preload = 'auto';
 
 let queueToken = null;
+let unlocked   = false;
 
-// This MUST be called from a user gesture (Start or Enable button)
+// This MUST be called from a user gesture (Start or Enable button).
+// Idempotent: subsequent calls are no-ops, so they can't race with a real
+// audio.play() that's running right after (the resolving unlock promise
+// would otherwise pause the freshly-started clip).
 export function unlockAudio() {
-  singletonPlayer.src = VOICES_DIR + '1.mp3'; // point to any small file
+  if (unlocked) return;
+  singletonPlayer.src = VOICES_DIR + '1.mp3';
   singletonPlayer.muted = true;
   singletonPlayer.play().then(() => {
     singletonPlayer.pause();
     singletonPlayer.muted = false;
+    unlocked = true;
     console.log("iOS Audio Unlocked");
   }).catch(e => console.warn("Audio unlock failed:", e));
 }
