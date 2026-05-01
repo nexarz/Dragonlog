@@ -951,9 +951,23 @@ function initTabs() {
   });
 }
 
+// When connected to a pack, the main START button proposes a group start
+// (5s countdown for everyone) instead of starting just this device.
+function handleStartButton() {
+  audio.unlockAudio();
+  if (liveSession) {
+    if (!confirm('Start a session for the whole pack? Everyone will get a 5-second countdown.')) return;
+    const data = { starterName: liveSelfName, from: liveSelfName };
+    if (player.loaded) data.workout = player.workout;
+    liveSession.sendCommand('COUNTDOWN', data);
+    return;
+  }
+  startSession();
+}
+
 // ---------- Wiring: session buttons ----------
 function initSessionControls() {
-  $('startBtn').addEventListener('click', startSession);
+  $('startBtn').addEventListener('click', handleStartButton);
   $('pauseBtn').addEventListener('click', pauseSession);
   $('resumeBtn').addEventListener('click', resumeSession);
   $('stopBtn').addEventListener('click', stopSession);
