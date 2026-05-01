@@ -1033,3 +1033,48 @@ svg.spark { width: 100%; height: 80px; display: block; }
   background: var(--accent);
   border-color: var(--accent);
 }
+
+/* ---------- Fullscreen countdown overlay ---------- */
+.countdown-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10, 14, 15, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: none;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 200;
+  text-align: center;
+  padding: 20px;
+}
+.countdown-overlay.active { display: flex; animation: fade .25s ease; }
+.countdown-starter {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 6px;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+.countdown-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 8px;
+  color: var(--ink-dim);
+  margin-bottom: 24px;
+}
+.countdown-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  font-size: clamp(180px, 50vw, 360px);
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 0 0 60px rgba(255, 60, 40, 0.55);
+  animation: countdown-pop .9s ease-out;
+}
+@keyframes countdown-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  40%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}

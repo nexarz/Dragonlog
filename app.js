@@ -1262,18 +1262,25 @@ function showCountdown(starterName) {
   if (countdownActive || state.running) return;
   countdownActive = true;
   document.querySelector('[data-tab="train"]').click();
-  const banner = $('workoutAlertBanner');
+  const overlay = $('countdownOverlay');
+  const numEl   = $('countdownNumber');
+  const startEl = $('countdownStarter');
+  startEl.textContent = (starterName || 'PACK').toUpperCase();
+  overlay.classList.add('active');
   let count = 5;
   function tick() {
-    if (!countdownActive) return;
+    if (!countdownActive) { overlay.classList.remove('active'); return; }
     if (count <= 0) {
       countdownActive = false;
-      banner.style.display = 'none';
+      overlay.classList.remove('active');
       startSession({ remote: true });
       return;
     }
-    banner.textContent = `${starterName.toUpperCase()} — STARTING IN ${count}`;
-    banner.style.display = '';
+    // Re-trigger pop animation by removing and re-adding the node text
+    numEl.textContent = String(count);
+    numEl.style.animation = 'none';
+    void numEl.offsetWidth;       // force reflow so the keyframe restarts
+    numEl.style.animation = '';
     audio.play(String(count));
     count--;
     setTimeout(tick, 1000);
