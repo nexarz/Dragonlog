@@ -1306,6 +1306,7 @@ function showLiveConnected(roomId, role) {
   $('activeRoleName').textContent = role === 'coach' ? 'Coach' : 'Paddler';
   $('coachPanel').style.display  = role === 'coach'   ? 'block' : 'none';
   $('paddlerPanel').style.display = role === 'paddler' ? 'block' : 'none';
+  $('packRoster').style.display   = 'block';
   const chip = $('packChip');
   chip.textContent = `${role === 'coach' ? '◆' : '●'} ${roomId.toUpperCase()}`;
   chip.classList.toggle('coach', role === 'coach');
@@ -1318,6 +1319,7 @@ function showLiveDisconnected() {
   $('packChip').style.display = 'none';
   $('paddlerPanel').style.display = 'none';
   $('coachPanel').style.display = 'none';
+  $('packRoster').style.display = 'none';
   countdownActive = false;
 }
 
@@ -1402,7 +1404,7 @@ function initLiveControls() {
       liveRole = role;
       activeRoomId = roomId;
       showLiveConnected(roomId, role);
-      if (role === 'coach') liveSession.watchPack(renderCoachGrid);
+      liveSession.watchPack(renderCoachGrid);
     } catch (e) {
       console.error('Live join failed:', e);
       alert(e.message || 'Could not connect. Check your Room ID and try again.');
