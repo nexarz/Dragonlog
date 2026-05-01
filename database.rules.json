@@ -5,7 +5,7 @@
         ".read":  "$roomId.length >= 8",
         ".write": "$roomId.length >= 8",
         "command": {
-          ".validate": "newData.hasChildren(['type', 'ts']) && newData.child('type').val().matches(/^(START|STOP)$/) && newData.child('ts').isNumber()"
+          ".validate": "newData.hasChildren(['type', 'ts']) && newData.child('type').val().matches(/^(START|STOP|LOAD_WORKOUT|COUNTDOWN)$/) && newData.child('ts').isNumber()"
         },
         "paddlers": {
           "$paddlerId": {

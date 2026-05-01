@@ -48,6 +48,8 @@ let liveRole         = null;
 let activeRoomId     = null;
 let liveBroadcastTick = 0;
 let countdownActive  = false;
+let liveSelfName     = '';      // our display name in the active room — used to suppress our own command echoes
+let pendingInviteWorkout = null;
 
 // Firebase RTDB converts arrays to numbered objects when round-tripping.
 // Normalise any array-like object back to a real array before use.
@@ -1258,6 +1260,15 @@ function renderCoachGrid(paddlers) {
   `).join('');
 }
 
+function showWorkoutInvite(fromName, workout) {
+  pendingInviteWorkout = workout;
+  $('workoutInviteFrom').textContent = (fromName || 'Pack').toUpperCase();
+  $('workoutInviteName').textContent = (workout.name || 'Workout').toUpperCase();
+  const totalMin = Math.round(totalWorkoutSec(workout) / 60);
+  $('workoutInviteMeta').textContent = `${workout.intervals.length} INTERVALS · ~${totalMin} MIN`;
+  $('workoutInviteModal').classList.add('active');
+}
+
 function showCountdown(starterName) {
   if (countdownActive || state.running) return;
   countdownActive = true;
@@ -1361,6 +1372,7 @@ function initLiveControls() {
     $('joinLiveBtn').textContent = 'CONNECTING…';
     try {
       liveSession = await joinRoom(roomId, name, role, (cmd) => {
+        const fromSelf = cmd.data?.from && cmd.data.from === liveSelfName;
         if (cmd.type === 'START' && !state.running) {
           const w = normalizeWorkout(cmd.data?.workout);
           if (w) player.load(w);
@@ -1370,12 +1382,23 @@ function initLiveControls() {
         if (cmd.type === 'STOP' && state.running) stopSession({ remote: true });
         if (cmd.type === 'LOAD_WORKOUT') {
           const w = normalizeWorkout(cmd.data?.workout);
-          if (w) { player.load(w); document.querySelector('[data-tab="train"]').click(); }
+          if (!w) return;
+          if (fromSelf) {
+            // we sent it — already loaded locally, just confirm visually
+            document.querySelector('[data-tab="train"]').click();
+          } else {
+            showWorkoutInvite(cmd.data?.from || 'Pack', w);
+          }
         }
         if (cmd.type === 'COUNTDOWN' && !state.running) {
+          // Auto-load workout that came with the countdown so paddlers who
+          // never received/accepted the LOAD_WORKOUT still run the right plan.
+          const w = normalizeWorkout(cmd.data?.workout);
+          if (w) player.load(w);
           showCountdown(cmd.data?.starterName || 'Pack');
         }
       });
+      liveSelfName = name;
       liveRole = role;
       activeRoomId = roomId;
       showLiveConnected(roomId, role);
@@ -1392,6 +1415,9 @@ function initLiveControls() {
   $('leaveLiveBtn').addEventListener('click', () => {
     if (liveSession) { liveSession.leave(); liveSession = null; liveRole = null; }
     activeRoomId = null;
+    liveSelfName = '';
+    pendingInviteWorkout = null;
+    $('workoutInviteModal').classList.remove('active');
     showLiveDisconnected();
   });
 
@@ -1430,20 +1456,34 @@ function initLiveControls() {
   $('coachSendWorkoutBtn').addEventListener('click', () => {
     if (!liveSession) return;
     if (!player.loaded) { alert('No workout loaded — go to the Plan tab and load one first.'); return; }
-    liveSession.sendCommand('LOAD_WORKOUT', { workout: player.workout });
+    liveSession.sendCommand('LOAD_WORKOUT', { workout: player.workout, from: liveSelfName });
   });
 
   $('paddlerSendWorkoutBtn').addEventListener('click', () => {
     if (!liveSession) return;
     if (!player.loaded) { alert('No workout loaded — go to the Plan tab and load one first.'); return; }
-    liveSession.sendCommand('LOAD_WORKOUT', { workout: player.workout });
+    liveSession.sendCommand('LOAD_WORKOUT', { workout: player.workout, from: liveSelfName });
   });
 
   $('paddlerProposeStartBtn').addEventListener('click', () => {
     if (!liveSession) return;
     if (!confirm('Start a session for the whole group? Everyone will get a 5-second countdown.')) return;
-    const senderName = $('liveName').value.trim() || getActiveProfile(prefs).name;
-    liveSession.sendCommand('COUNTDOWN', { starterName: senderName });
+    const data = { starterName: liveSelfName, from: liveSelfName };
+    if (player.loaded) data.workout = player.workout;
+    liveSession.sendCommand('COUNTDOWN', data);
+  });
+
+  $('workoutInviteAccept').addEventListener('click', () => {
+    if (pendingInviteWorkout) {
+      player.load(pendingInviteWorkout);
+      document.querySelector('[data-tab="train"]').click();
+    }
+    pendingInviteWorkout = null;
+    $('workoutInviteModal').classList.remove('active');
+  });
+  $('workoutInviteDecline').addEventListener('click', () => {
+    pendingInviteWorkout = null;
+    $('workoutInviteModal').classList.remove('active');
   });
 
   $('joinPackCancel').addEventListener('click', hideJoinPackModal);
