@@ -1444,6 +1444,7 @@ function initLiveControls() {
   });
 
   $('coachStartBtn').addEventListener('click', () => {
+    audio.unlockAudio();
     if (!liveSession) return;
     const data = player.loaded ? { workout: player.workout } : {};
     liveSession.sendCommand('START', data);
@@ -1466,6 +1467,7 @@ function initLiveControls() {
   });
 
   $('paddlerProposeStartBtn').addEventListener('click', () => {
+    audio.unlockAudio();
     if (!liveSession) return;
     if (!confirm('Start a session for the whole group? Everyone will get a 5-second countdown.')) return;
     const data = { starterName: liveSelfName, from: liveSelfName };
@@ -1474,6 +1476,7 @@ function initLiveControls() {
   });
 
   $('workoutInviteAccept').addEventListener('click', () => {
+    audio.unlockAudio();   // user gesture — prime audio for any remote commands that follow
     if (pendingInviteWorkout) {
       player.load(pendingInviteWorkout);
       document.querySelector('[data-tab="train"]').click();
@@ -1482,6 +1485,7 @@ function initLiveControls() {
     $('workoutInviteModal').classList.remove('active');
   });
   $('workoutInviteDecline').addEventListener('click', () => {
+    audio.unlockAudio();   // user gesture — prime audio in case they later accept a START
     pendingInviteWorkout = null;
     $('workoutInviteModal').classList.remove('active');
   });
