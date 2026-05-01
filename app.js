@@ -1323,9 +1323,8 @@ function showLiveDisconnected() {
   countdownActive = false;
 }
 
-function showJoinPackModal(roomId, role) {
+function showJoinPackModal(roomId) {
   $('joinPackRoom').textContent = roomId;
-  $('joinPackRole').textContent = role.toUpperCase();
   $('joinPackModal').classList.add('active');
 }
 function hideJoinPackModal() {
@@ -1341,15 +1340,12 @@ function initLiveControls() {
   const activeName = getActiveProfile(prefs)?.name || '';
   $('liveName').value = activeName;
 
-  // Auto-fill from a join link: ?room=VANC-7K4M&role=paddler
+  // Auto-fill from a join link: ?room=VANC-7K4M  (role chosen in the modal)
   const liveParams = new URLSearchParams(location.search);
   const linkRoom = liveParams.get('room');
-  const linkRole = liveParams.get('role');
   if (linkRoom) {
     $('liveRoomId').value = linkRoom.toUpperCase();
-    if (linkRole === 'paddler' || linkRole === 'coach') $('liveRole').value = linkRole;
-    // Surface a confirmation so the user knows what they're joining
-    showJoinPackModal(linkRoom.toUpperCase(), linkRole === 'coach' ? 'coach' : 'paddler');
+    showJoinPackModal(linkRoom.toUpperCase());
   }
 
   $('joinLiveBtn').addEventListener('click', async () => {
@@ -1425,7 +1421,7 @@ function initLiveControls() {
 
   $('copyRoomLinkBtn').addEventListener('click', async () => {
     if (!activeRoomId) return;
-    const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(activeRoomId)}&role=paddler`;
+    const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(activeRoomId)}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Join my Dragonlog pack', text: `Room: ${activeRoomId}`, url });
@@ -1493,11 +1489,15 @@ function initLiveControls() {
   });
 
   $('joinPackCancel').addEventListener('click', hideJoinPackModal);
-  $('joinPackConfirm').addEventListener('click', () => {
+
+  function joinFromModalAs(role) {
+    $('liveRole').value = role;
     hideJoinPackModal();
     document.querySelector('[data-tab="live"]')?.click();
     $('joinLiveBtn').click();
-  });
+  }
+  $('joinPackAsPaddler').addEventListener('click', () => joinFromModalAs('paddler'));
+  $('joinPackAsCoach').addEventListener('click',   () => joinFromModalAs('coach'));
 }
 
 // ---------- Re-acquire wake lock when tab becomes visible ----------

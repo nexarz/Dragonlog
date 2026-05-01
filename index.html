@@ -411,20 +411,11 @@
 <div class="modal-overlay" id="joinPackModal">
   <div class="modal">
     <h3>JOIN PACK</h3>
-    <p>You've been invited to join a Dragonlog pack room.</p>
-    <div class="calib-stats">
-      <div class="calib-stat">
-        <div class="l">ROOM</div>
-        <div class="v" id="joinPackRoom">—</div>
-      </div>
-      <div class="calib-stat accent">
-        <div class="l">ROLE</div>
-        <div class="v" id="joinPackRole">—</div>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="joinPackCancel">CANCEL</button>
-      <button class="btn btn-primary" id="joinPackConfirm">JOIN</button>
+    <p>You've been invited to room <strong id="joinPackRoom">—</strong>. How do you want to join?</p>
+    <div class="modal-actions" style="flex-direction:column;gap:8px">
+      <button class="btn btn-primary"   id="joinPackAsPaddler">JOIN AS PADDLER</button>
+      <button class="btn btn-secondary" id="joinPackAsCoach">JOIN AS COACH</button>
+      <button class="btn btn-ghost"     id="joinPackCancel">CANCEL</button>
     </div>
   </div>
 </div>
