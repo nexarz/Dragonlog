@@ -1295,6 +1295,7 @@ function initLiveControls() {
   }
 
   $('joinLiveBtn').addEventListener('click', async () => {
+    audio.unlockAudio();   // unlock from this user gesture so remote commands can play audio
     const inputId = $('liveRoomId').value.trim().toUpperCase();
     const role    = $('liveRole').value;
     const name    = $('liveName').value.trim() || getActiveProfile(prefs).name;
@@ -1316,13 +1317,14 @@ function initLiveControls() {
     try {
       liveSession = await joinRoom(roomId, name, role, (cmd) => {
         if (cmd.type === 'START' && !state.running) {
-          if (cmd.data?.workout) { player.load(cmd.data.workout); renderWorkoutPlayer(); }
+          if (cmd.data?.workout) player.load(cmd.data.workout);
+          document.querySelector('[data-tab="train"]').click();
           startSession({ remote: true });
         }
         if (cmd.type === 'STOP'  &&  state.running) stopSession({ remote: true });
         if (cmd.type === 'LOAD_WORKOUT' && cmd.data?.workout) {
           player.load(cmd.data.workout);
-          renderWorkoutPlayer();
+          document.querySelector('[data-tab="train"]').click();
         }
       });
       liveRole = role;
