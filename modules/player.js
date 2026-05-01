@@ -10,6 +10,7 @@ export function createPlayer() {
   let workout       = null;
   let currentIdx    = -1;
   let intervalStart = 0;  // wall clock ms when current interval began (adjusted for pauses)
+  let intervalStartDistance = 0;  // fused distance (m) when current interval began
   let active        = false;
   let pauseStart    = 0;
 
@@ -51,6 +52,7 @@ export function createPlayer() {
       active        = true;
       currentIdx    = 0;
       intervalStart = Date.now();
+      intervalStartDistance = 0;
       pauseStart    = 0;
       announced.clear(); resetIntervalState();
       audio.play(audio.intervalClip(workout.intervals[0]));
@@ -80,11 +82,27 @@ export function createPlayer() {
 
       const now       = Date.now();
       const elapsed   = now - intervalStart;
-      const remaining = iv.durationSec * 1000 - elapsed;
-      const k         = currentIdx;
+      const isDistance = iv.mode === 'distance';
+      const k          = currentIdx;
 
-      // 10-second cue: announce + preview next interval
-      if (remaining <= 10500 && remaining > 9500 && !announced.has(`${k}_10`)) {
+      // For time intervals: ms remaining. For distance: estimated ms based on
+      // current pace, used only to drive the 10s cue / 5-4-3-2-1 countdown.
+      const traveled  = state.fusedDistance - intervalStartDistance;
+      const remainingM  = isDistance ? Math.max(0, (iv.distanceM || 0) - traveled) : 0;
+      let remainingMs;
+      let isComplete;
+      if (isDistance) {
+        const speedMs = elapsed > 1000 ? (traveled / (elapsed / 1000)) : 0;
+        remainingMs = speedMs > 0.3 ? (remainingM / speedMs) * 1000 : Infinity;
+        isComplete = remainingM <= 0 && elapsed > 500;   // tiny grace so a stationary start doesn't auto-skip
+      } else {
+        remainingMs = iv.durationSec * 1000 - elapsed;
+        isComplete = remainingMs <= 0;
+      }
+
+      // 10-second cue: announce + preview next interval (works for both modes
+      // — distance uses an estimated remaining-time so cue fires at ~10s left)
+      if (remainingMs <= 10500 && remainingMs > 9500 && !announced.has(`${k}_10`)) {
         announced.add(`${k}_10`);
         const next = workout.intervals[currentIdx + 1];
         if (next) audio.playQueue('10sec', audio.nextIntervalClip(next));
@@ -93,7 +111,7 @@ export function createPlayer() {
       // 5-4-3-2-1 verbal countdown
       for (let s = 5; s >= 1; s--) {
         const ck = `${k}_cd${s}`;
-        if (remaining <= s * 1000 && !announced.has(ck)) {
+        if (remainingMs <= s * 1000 && !announced.has(ck)) {
           announced.add(ck);
           audio.play(String(s));
           break;
@@ -101,7 +119,7 @@ export function createPlayer() {
       }
 
       // --- Interval complete ---
-      if (remaining <= 0) {
+      if (isComplete) {
         const nextIdx = currentIdx + 1;
         if (nextIdx >= workout.intervals.length) {
           active = false;
@@ -110,14 +128,17 @@ export function createPlayer() {
         }
         currentIdx    = nextIdx;
         intervalStart = now;
+        intervalStartDistance = state.fusedDistance;
         resetIntervalState();
         audio.play(audio.intervalClip(workout.intervals[currentIdx]));
+        const nextIv = workout.intervals[currentIdx];
         return {
           type: 'next', currentIdx,
           totalIntervals:  workout.intervals.length,
-          currentInterval: workout.intervals[currentIdx],
+          currentInterval: nextIv,
           nextInterval:    workout.intervals[currentIdx + 1] || null,
-          remainingMs:     workout.intervals[currentIdx].durationSec * 1000,
+          remainingMs:     nextIv.mode === 'distance' ? Infinity : nextIv.durationSec * 1000,
+          remainingM:      nextIv.mode === 'distance' ? nextIv.distanceM : 0,
           alert: null,
         };
       }
@@ -159,7 +180,8 @@ export function createPlayer() {
         totalIntervals:  workout.intervals.length,
         currentInterval: iv,
         nextInterval:    workout.intervals[currentIdx + 1] || null,
-        remainingMs:     Math.max(0, remaining),
+        remainingMs:     Math.max(0, remainingMs),
+        remainingM:      remainingM,
       };
     },
   };

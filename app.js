@@ -270,11 +270,24 @@ function renderWorkoutPlayer() {
     el.style.display = 'none'; return;
   }
 
-  const { currentInterval, nextInterval, remainingMs, totalIntervals, currentIdx } = playerStatus;
+  const { currentInterval, nextInterval, remainingMs, remainingM, totalIntervals, currentIdx } = playerStatus;
   const pct   = Math.round(((currentIdx + 1) / totalIntervals) * 100);
-  const remS  = Math.ceil(remainingMs / 1000);
-  const remM  = Math.floor(remS / 60);
-  const remSS = String(remS % 60).padStart(2, '0');
+  const isDistance = currentInterval.mode === 'distance';
+  let bigDisplay;
+  if (isDistance) {
+    const m = Math.max(0, Math.round(remainingM || 0));
+    bigDisplay = `${m}<span class="wp-unit">M</span>`;
+  } else {
+    const remS  = Math.ceil(remainingMs / 1000);
+    const remM  = Math.floor(remS / 60);
+    const remSS = String(remS % 60).padStart(2, '0');
+    bigDisplay = `${remM}:${remSS}`;
+  }
+  const nextLabel = nextInterval
+    ? (nextInterval.mode === 'distance'
+        ? `${nextInterval.distanceM}M`
+        : fmtDur(nextInterval.durationSec))
+    : '';
 
   el.innerHTML = `
     <div class="wp-header">
@@ -288,13 +301,13 @@ function renderWorkoutPlayer() {
       <div class="wp-current">
         <div class="wp-label">CURRENT</div>
         <div class="wp-interval-name">${intervalDisplay(currentInterval)}</div>
-        <div class="wp-countdown">${remM}:${remSS}</div>
+        <div class="wp-countdown">${bigDisplay}</div>
       </div>
       <div class="wp-next">
         ${nextInterval
           ? `<div class="wp-label">NEXT</div>
              <div class="wp-next-name">${intervalDisplay(nextInterval)}</div>
-             <div class="wp-next-dur">${fmtDur(nextInterval.durationSec)}</div>`
+             <div class="wp-next-dur">${nextLabel}</div>`
           : `<div class="wp-label">FINAL INTERVAL</div>`}
       </div>
     </div>`;
@@ -1105,8 +1118,35 @@ function renderBuilderIntervals() {
   }
   list.innerHTML = currentEditWorkout.intervals.map((iv, i) => {
     const isRest = iv.type === 'rest' || iv.type === 'cooldown';
-    const minVal = Math.floor(iv.durationSec / 60);
-    const secVal = iv.durationSec % 60;
+    const isDistance = iv.mode === 'distance';
+    const minVal = Math.floor((iv.durationSec || 0) / 60);
+    const secVal = (iv.durationSec || 0) % 60;
+    const distanceM = iv.distanceM || 200;
+
+    // Rest intervals are always time-based; hide the mode selector for them.
+    const modeCell = iv.type === 'rest'
+      ? '<div class="iv-mode-wrap"><span class="iv-mode-label">TIME</span></div>'
+      : `<select class="iv-mode-select" data-field="mode">
+           <option value="time"     ${!isDistance ? 'selected' : ''}>TIME</option>
+           <option value="distance" ${ isDistance ? 'selected' : ''}>DIST</option>
+         </select>`;
+
+    const valueCell = (!isDistance || iv.type === 'rest')
+      ? `<div class="iv-dur-wrap">
+           <input class="iv-min" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="99" value="${minVal}" data-field="min">
+           <span class="iv-dur-sep">:</span>
+           <input class="iv-sec" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="59" step="5" value="${String(secVal).padStart(2,'0')}" data-field="sec">
+         </div>`
+      : `<div class="iv-dist-wrap">
+           <select class="iv-dist-preset" data-field="distPreset">
+             <option value="100" ${distanceM === 100 ? 'selected' : ''}>100M</option>
+             <option value="200" ${distanceM === 200 ? 'selected' : ''}>200M</option>
+             <option value="500" ${distanceM === 500 ? 'selected' : ''}>500M</option>
+             <option value="custom" ${![100,200,500].includes(distanceM) ? 'selected' : ''}>CUSTOM</option>
+           </select>
+           <input class="iv-dist" type="number" inputmode="numeric" pattern="[0-9]*" min="10" max="9999" step="10" value="${distanceM}" data-field="dist">
+         </div>`;
+
     return `<div class="interval-row" data-idx="${i}">
       <div class="iv-num">${i + 1}</div>
       <select class="iv-type-select" data-field="type">
@@ -1115,16 +1155,15 @@ function renderBuilderIntervals() {
         <option value="warmup"   ${iv.type === 'warmup'   ? 'selected' : ''}>WARMUP</option>
         <option value="cooldown" ${iv.type === 'cooldown' ? 'selected' : ''}>COOLDOWN</option>
       </select>
-      <div class="iv-ps-wrap" ${isRest ? 'style="visibility:hidden"' : ''}>
-        <span class="iv-ps-label">PS</span>
-        <input class="iv-ps" type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="10" value="${iv.ps}" data-field="ps">
-      </div>
-      <div class="iv-dur-wrap">
-        <input class="iv-min" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="99" value="${minVal}" data-field="min">
-        <span class="iv-dur-sep">:</span>
-        <input class="iv-sec" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="59" step="5" value="${String(secVal).padStart(2,'0')}" data-field="sec">
-      </div>
       <button class="btn btn-ghost btn-compact danger-btn iv-del" data-field="del">✕</button>
+      <div class="iv-row2">
+        <div class="iv-ps-wrap" ${isRest ? 'style="visibility:hidden"' : ''}>
+          <span class="iv-ps-label">PS</span>
+          <input class="iv-ps" type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="10" value="${iv.ps}" data-field="ps">
+        </div>
+        ${modeCell}
+        ${valueCell}
+      </div>
     </div>`;
   }).join('');
 }
@@ -1150,14 +1189,32 @@ function initPlanControls() {
     if (!iv) return;
     if (field === 'type') {
       iv.type = e.target.value;
+      // REST is always time-based — clear distance mode if present
+      if (iv.type === 'rest' && iv.mode === 'distance') {
+        iv.mode = 'time';
+        iv.durationSec = iv.durationSec || 60;
+      }
       renderBuilderIntervals();
     } else if (field === 'ps') {
       iv.ps = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 6));
+    } else if (field === 'mode') {
+      iv.mode = e.target.value === 'distance' ? 'distance' : 'time';
+      if (iv.mode === 'distance' && !iv.distanceM) iv.distanceM = 200;
+      if (iv.mode === 'time' && !iv.durationSec) iv.durationSec = 120;
+      renderBuilderIntervals();
+    } else if (field === 'distPreset') {
+      const v = e.target.value;
+      if (v !== 'custom') {
+        iv.distanceM = parseInt(v, 10);
+        renderBuilderIntervals();
+      }
+    } else if (field === 'dist') {
+      iv.distanceM = Math.max(10, Math.min(9999, parseInt(e.target.value, 10) || 200));
     } else if (field === 'min') {
-      const sec = iv.durationSec % 60;
+      const sec = (iv.durationSec || 0) % 60;
       iv.durationSec = Math.max(0, parseInt(e.target.value, 10) || 0) * 60 + sec;
     } else if (field === 'sec') {
-      const min = Math.floor(iv.durationSec / 60);
+      const min = Math.floor((iv.durationSec || 0) / 60);
       iv.durationSec = min * 60 + Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
     }
   });

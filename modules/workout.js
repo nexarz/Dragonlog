@@ -32,15 +32,26 @@ export function newWorkout(name = 'New Workout') {
 }
 
 // type: 'work' | 'rest' | 'warmup' | 'cooldown'
+// mode: 'time' (durationSec) | 'distance' (distanceM). Defaults to 'time' for
+// backwards compatibility — older saved workouts have no `mode` field.
 export function newInterval(type = 'work', ps = 6, durationSec = 120) {
-  return { id: (Date.now() + Math.random() * 1e6) | 0, type, ps, durationSec };
+  return { id: (Date.now() + Math.random() * 1e6) | 0, type, ps, mode: 'time', durationSec };
+}
+
+export function newDistanceInterval(type = 'work', ps = 6, distanceM = 200) {
+  return { id: (Date.now() + Math.random() * 1e6) | 0, type, ps, mode: 'distance', distanceM };
+}
+
+export function isDistanceInterval(iv) {
+  return iv.mode === 'distance';
 }
 
 export function intervalDisplay(iv) {
-  if (iv.type === 'rest')     return 'REST';
-  if (iv.type === 'warmup')   return `WARM UP · PS${iv.ps}`;
-  if (iv.type === 'cooldown') return `COOL DOWN · PS${iv.ps}`;
-  return `PS${iv.ps} · ${iv.ps * 10}%`;
+  if (iv.type === 'rest') return 'REST';
+  const tail = isDistanceInterval(iv) ? `${iv.distanceM}M` : `${iv.ps * 10}%`;
+  if (iv.type === 'warmup')   return `WARM UP · PS${iv.ps} · ${tail}`;
+  if (iv.type === 'cooldown') return `COOL DOWN · PS${iv.ps} · ${tail}`;
+  return `PS${iv.ps} · ${tail}`;
 }
 
 export function fmtDur(sec) {
@@ -48,6 +59,15 @@ export function fmtDur(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Estimate seconds for a distance interval so the workout summary can show a
+// rough total duration. Conservative average paces by interval type.
+function estimateDistanceSec(iv) {
+  const mps = iv.type === 'work' ? 3.0 : 2.0;
+  return Math.round((iv.distanceM || 0) / mps);
+}
+
 export function totalWorkoutSec(w) {
-  return w.intervals.reduce((a, iv) => a + iv.durationSec, 0);
+  return w.intervals.reduce((a, iv) => {
+    return a + (isDistanceInterval(iv) ? estimateDistanceSec(iv) : (iv.durationSec || 0));
+  }, 0);
 }
