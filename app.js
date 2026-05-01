@@ -43,10 +43,21 @@ let alertHideTimer = null;
 let currentEditWorkout = null;  // workout open in builder
 
 // ---------- Live / Pack mode ----------
-let liveSession  = null;
-let liveRole     = null;
-let activeRoomId = null;
+let liveSession      = null;
+let liveRole         = null;
+let activeRoomId     = null;
 let liveBroadcastTick = 0;
+let countdownActive  = false;
+
+// Firebase RTDB converts arrays to numbered objects when round-tripping.
+// Normalise any array-like object back to a real array before use.
+function normalizeWorkout(w) {
+  if (!w) return null;
+  if (w.intervals && !Array.isArray(w.intervals)) {
+    w.intervals = Object.values(w.intervals);
+  }
+  return w;
+}
 
 // ---------- Sensors ----------
 const strokeDetector = createStrokeDetector({
@@ -1247,12 +1258,36 @@ function renderCoachGrid(paddlers) {
   `).join('');
 }
 
+function showCountdown(starterName) {
+  if (countdownActive || state.running) return;
+  countdownActive = true;
+  document.querySelector('[data-tab="train"]').click();
+  const banner = $('workoutAlertBanner');
+  let count = 5;
+  function tick() {
+    if (!countdownActive) return;
+    if (count <= 0) {
+      countdownActive = false;
+      banner.style.display = 'none';
+      startSession({ remote: true });
+      return;
+    }
+    banner.textContent = `${starterName.toUpperCase()} — STARTING IN ${count}`;
+    banner.style.display = '';
+    audio.play(String(count));
+    count--;
+    setTimeout(tick, 1000);
+  }
+  tick();
+}
+
 function showLiveConnected(roomId, role) {
   $('liveSetup').style.display = 'none';
   $('liveConnected').style.display = 'block';
   $('activeRoomName').textContent = roomId.toUpperCase();
   $('activeRoleName').textContent = role === 'coach' ? 'Coach' : 'Paddler';
-  $('coachPanel').style.display = role === 'coach' ? 'block' : 'none';
+  $('coachPanel').style.display  = role === 'coach'   ? 'block' : 'none';
+  $('paddlerPanel').style.display = role === 'paddler' ? 'block' : 'none';
   const chip = $('packChip');
   chip.textContent = `${role === 'coach' ? '◆' : '●'} ${roomId.toUpperCase()}`;
   chip.classList.toggle('coach', role === 'coach');
@@ -1263,6 +1298,9 @@ function showLiveDisconnected() {
   $('liveSetup').style.display = 'block';
   $('liveConnected').style.display = 'none';
   $('packChip').style.display = 'none';
+  $('paddlerPanel').style.display = 'none';
+  $('coachPanel').style.display = 'none';
+  countdownActive = false;
 }
 
 function showJoinPackModal(roomId, role) {
@@ -1317,14 +1355,18 @@ function initLiveControls() {
     try {
       liveSession = await joinRoom(roomId, name, role, (cmd) => {
         if (cmd.type === 'START' && !state.running) {
-          if (cmd.data?.workout) player.load(cmd.data.workout);
+          const w = normalizeWorkout(cmd.data?.workout);
+          if (w) player.load(w);
           document.querySelector('[data-tab="train"]').click();
           startSession({ remote: true });
         }
-        if (cmd.type === 'STOP'  &&  state.running) stopSession({ remote: true });
-        if (cmd.type === 'LOAD_WORKOUT' && cmd.data?.workout) {
-          player.load(cmd.data.workout);
-          document.querySelector('[data-tab="train"]').click();
+        if (cmd.type === 'STOP' && state.running) stopSession({ remote: true });
+        if (cmd.type === 'LOAD_WORKOUT') {
+          const w = normalizeWorkout(cmd.data?.workout);
+          if (w) { player.load(w); document.querySelector('[data-tab="train"]').click(); }
+        }
+        if (cmd.type === 'COUNTDOWN' && !state.running) {
+          showCountdown(cmd.data?.starterName || 'Pack');
         }
       });
       liveRole = role;
@@ -1382,6 +1424,19 @@ function initLiveControls() {
     if (!liveSession) return;
     if (!player.loaded) { alert('No workout loaded — go to the Plan tab and load one first.'); return; }
     liveSession.sendCommand('LOAD_WORKOUT', { workout: player.workout });
+  });
+
+  $('paddlerSendWorkoutBtn').addEventListener('click', () => {
+    if (!liveSession) return;
+    if (!player.loaded) { alert('No workout loaded — go to the Plan tab and load one first.'); return; }
+    liveSession.sendCommand('LOAD_WORKOUT', { workout: player.workout });
+  });
+
+  $('paddlerProposeStartBtn').addEventListener('click', () => {
+    if (!liveSession) return;
+    if (!confirm('Start a session for the whole group? Everyone will get a 5-second countdown.')) return;
+    const senderName = $('liveName').value.trim() || getActiveProfile(prefs).name;
+    liveSession.sendCommand('COUNTDOWN', { starterName: senderName });
   });
 
   $('joinPackCancel').addEventListener('click', hideJoinPackModal);
