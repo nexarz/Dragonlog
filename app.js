@@ -1369,10 +1369,11 @@ function initLiveControls() {
     const name    = $('liveName').value.trim() || getActiveProfile(prefs).name;
     if (!inputId) { alert('Enter a Room ID'); return; }
 
-    // Coach generates a random suffix for short bare names; paddlers must
-    // type the full token exactly so they pick up the suffix.
+    // Coach generates a random suffix only when the bare name is too short
+    // to meet the 8-char minimum. If it's already long enough, use it as-is
+    // so a coach and paddler typing the same name land in the same room.
     let roomId = inputId;
-    if (role === 'coach' && !inputId.includes('-')) {
+    if (role === 'coach' && !inputId.includes('-') && inputId.length < 8) {
       roomId = buildRoomToken(inputId);
     }
     if (roomId.length < 8) {
