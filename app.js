@@ -167,7 +167,7 @@ async function stopSession({ remote = false } = {}) {
   if (wakeLock) { try { wakeLock.release(); } catch {} wakeLock = null; }
   toggleControls('idle');
   renderWorkoutPlayer();
-  if (!remote && liveSession && liveRole === 'coach') {
+  if (!remote && liveSession) {
     liveSession.sendCommand('STOP');
   }
   if (final.durationSec > 5) {
@@ -1083,6 +1083,10 @@ function onWorkoutAction(action, idStr) {
       return;
     }
     player.load(w);
+    // If in a pack, push this workout to everyone too
+    if (liveSession) {
+      liveSession.sendCommand('LOAD_WORKOUT', { workout: w, from: liveSelfName });
+    }
     // Switch to Train tab
     document.querySelector('[data-tab="train"]').click();
   } else if (action === 'edit') {
