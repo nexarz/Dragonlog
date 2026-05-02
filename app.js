@@ -874,6 +874,15 @@ function initSettingsControls() {
   $('distMode').value = prefs.distMode;
   $('autoRecal').value = String(prefs.autoRecal);
   $('appVersion').textContent = APP_VERSION;
+  $('displayNameInput').value = prefs.liveName || '';
+  $('displayNameInput').addEventListener('input', e => {
+    prefs.liveName = e.target.value.trim();
+    savePrefs(prefs);
+    // Mirror into the Live-tab name field if it exists, so a name typed
+    // here shows up immediately when the user goes to join a room.
+    const liveName = $('liveName');
+    if (liveName) liveName.value = prefs.liveName;
+  });
 
   $('sensitivity').addEventListener('input', e => {
     prefs.sensitivity = parseFloat(e.target.value);
