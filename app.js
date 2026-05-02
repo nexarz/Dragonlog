@@ -1411,9 +1411,15 @@ function hideJoinPackModal() {
 }
 
 function initLiveControls() {
-  // Pre-fill the name field with the active profile so it's visible & editable
-  const activeName = getActiveProfile(prefs)?.name || '';
-  $('liveName').value = activeName;
+  // Pre-fill the name field. Prefer a previously-saved liveName so paddlers
+  // don't have to retype it every session — fall back to the active profile
+  // name only if nothing has been saved yet.
+  const savedName = prefs.liveName || getActiveProfile(prefs)?.name || '';
+  $('liveName').value = savedName;
+  $('liveName').addEventListener('input', e => {
+    prefs.liveName = e.target.value.trim();
+    savePrefs(prefs);
+  });
 
   // Auto-fill from a join link: ?room=VANC-7K4M  (role chosen in the modal)
   const liveParams = new URLSearchParams(location.search);
